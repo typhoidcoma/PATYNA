@@ -81,4 +81,14 @@ export class TTSPlayer {
       eventBus.emit('audio:playbackEnd');
     }
   }
+
+  /** Disconnect worklet and release resources. */
+  destroy(): void {
+    this.flush();
+    if (this.workletNode) {
+      this.workletNode.disconnect();
+      this.workletNode = null;
+    }
+    this.initialized = false;
+  }
 }

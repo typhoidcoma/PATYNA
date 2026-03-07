@@ -18,6 +18,7 @@ export class VoiceManager {
   private vad: VAD;
   private stt: STTProvider;
   private _initialized = false;
+  private _micAvailable = false;
 
   constructor() {
     this.vad = new VAD();
@@ -28,6 +29,11 @@ export class VoiceManager {
     return this._initialized;
   }
 
+  /** Whether mic/VAD is available (false = show text input fallback) */
+  get micAvailable(): boolean {
+    return this._micAvailable;
+  }
+
   /** Initialize mic + VAD + wire events. Call after user gesture. */
   async init(): Promise<void> {
     if (this._initialized) return;
@@ -35,8 +41,10 @@ export class VoiceManager {
     // Initialize VAD (requests mic permission internally)
     try {
       await this.vad.init();
+      this._micAvailable = true;
     } catch (err) {
       console.warn('[Voice] VAD init failed (mic may not be available):', err);
+      this._micAvailable = false;
       // Continue without VAD — text input still works
     }
 

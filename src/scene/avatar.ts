@@ -1,8 +1,11 @@
 import * as THREE from 'three';
+import { eventBus } from '@/core/event-bus.ts';
+import type { AppState } from '@/types/config.ts';
 
 /**
  * Kawaii blob avatar — based on character reference sheet.
  * Round bubblegum-pink body, big expressive eyes, yellow bow, stubby nub limbs.
+ * Reacts visually to app state changes (listening/thinking/speaking).
  */
 export class Avatar {
   readonly group: THREE.Group;
@@ -10,6 +13,14 @@ export class Avatar {
 
   private bowGroup: THREE.Group;
   private rightArm: THREE.Mesh;
+  private mouth: THREE.Mesh;
+  private bodyMesh!: THREE.Mesh;
+  private bodyMat!: THREE.MeshPhysicalMaterial;
+
+  // State-driven animation
+  private currentState: AppState = 'idle';
+  private stateBlend = 0; // 0..1 blend into current state visuals
+  private baseEmissiveIntensity = 0.15;
 
   constructor() {
     this.group = new THREE.Group();
@@ -17,7 +28,7 @@ export class Avatar {
     this.bowGroup = new THREE.Group();
 
     // Primary body material — vivid bubblegum pink, glossy
-    const bodyMat = new THREE.MeshPhysicalMaterial({
+    this.bodyMat = new THREE.MeshPhysicalMaterial({
       color: '#F48CB0',
       roughness: 0.2,
       metalness: 0.0,
@@ -27,45 +38,47 @@ export class Avatar {
       sheenRoughness: 0.2,
       sheenColor: new THREE.Color('#FFDCE8'),
       emissive: '#F48CB0',
-      emissiveIntensity: 0.15,
+      emissiveIntensity: this.baseEmissiveIntensity,
     });
 
-    this.buildBody(bodyMat);
+    this.buildBody(this.bodyMat);
     this.buildEyes();
-    this.buildMouth();
+    this.mouth = this.buildMouth();
     this.buildBlush();
     this.buildBow();
-    this.buildArm(bodyMat, -1);
-    this.rightArm = this.buildArm(bodyMat, 1);
-    this.buildFeet(bodyMat);
+    this.buildArm(this.bodyMat, -1);
+    this.rightArm = this.buildArm(this.bodyMat, 1);
+    this.buildFeet(this.bodyMat);
     this.buildSpecularHighlights();
 
     this.group.add(this.headGroup);
+
+    // Listen for state changes
+    eventBus.on('state:change', ({ to }) => {
+      this.currentState = to;
+      this.stateBlend = 0;
+    });
   }
 
   private buildBody(mat: THREE.Material): void {
-    // Round blob body — nearly spherical per reference turnaround
-    const body = new THREE.Mesh(
+    this.bodyMesh = new THREE.Mesh(
       new THREE.SphereGeometry(0.44, 64, 48),
       mat,
     );
-    // Very slightly wider than tall, barely flattened in depth
-    body.scale.set(1.0, 0.96, 0.92);
-    body.position.y = 0.08;
-    this.headGroup.add(body);
+    this.bodyMesh.scale.set(1.0, 0.96, 0.92);
+    this.bodyMesh.position.y = 0.08;
+    this.headGroup.add(this.bodyMesh);
   }
 
   private buildEyes(): void {
-    // Large kawaii eyes — positioned on body surface, dark iris dominates
     const eyeOffsetX = 0.14;
     const eyeY = 0.08;
-    const eyeZ = 0.40; // On the body surface (body Z radius ~0.405)
+    const eyeZ = 0.40;
 
     for (const side of [-1, 1]) {
       const eyeGroup = new THREE.Group();
       eyeGroup.position.set(side * eyeOffsetX, eyeY, eyeZ);
 
-      // Sclera — white base, visible as thin rim around the dark iris
       const scleraMat = new THREE.MeshPhysicalMaterial({
         color: '#FFFFFF',
         roughness: 0.08,
@@ -79,8 +92,6 @@ export class Avatar {
       sclera.scale.set(0.85, 1.0, 0.55);
       eyeGroup.add(sclera);
 
-      // Iris — very large, nearly fills entire eye (dark brown)
-      // Only a thin white crescent visible at top
       const irisMat = new THREE.MeshStandardMaterial({
         color: '#3D2212',
         roughness: 0.12,
@@ -94,7 +105,6 @@ export class Avatar {
       iris.position.set(0, -0.012, 0.005);
       eyeGroup.add(iris);
 
-      // Pupil — black center
       const pupilMat = new THREE.MeshStandardMaterial({
         color: '#080808',
         roughness: 0.05,
@@ -107,7 +117,6 @@ export class Avatar {
       pupil.position.set(0, -0.012, 0.016);
       eyeGroup.add(pupil);
 
-      // Primary highlight — prominent white dot upper area
       const hlMat = new THREE.MeshBasicMaterial({ color: '#FFFFFF' });
       const hl1 = new THREE.Mesh(
         new THREE.SphereGeometry(0.024, 12, 8),
@@ -116,7 +125,6 @@ export class Avatar {
       hl1.position.set(side * 0.015, 0.03, 0.05);
       eyeGroup.add(hl1);
 
-      // Secondary highlight — smaller dot lower-opposite
       const hl2 = new THREE.Mesh(
         new THREE.SphereGeometry(0.013, 8, 6),
         hlMat,
@@ -124,7 +132,6 @@ export class Avatar {
       hl2.position.set(side * -0.015, -0.025, 0.05);
       eyeGroup.add(hl2);
 
-      // Eyelashes — 3 per eye, fanning from outer-top edge
       const lashMat = new THREE.MeshBasicMaterial({ color: '#1A0E08' });
       for (let i = 0; i < 3; i++) {
         const lash = new THREE.Mesh(
@@ -147,20 +154,19 @@ export class Avatar {
     }
   }
 
-  private buildMouth(): void {
-    // Small curved smile
+  private buildMouth(): THREE.Mesh {
     const mouthMat = new THREE.MeshBasicMaterial({ color: '#9B4860' });
     const mouth = new THREE.Mesh(
       new THREE.TorusGeometry(0.03, 0.005, 8, 16, Math.PI),
       mouthMat,
     );
     mouth.position.set(0, -0.02, 0.41);
-    mouth.rotation.z = Math.PI; // curves up = smile
+    mouth.rotation.z = Math.PI;
     this.headGroup.add(mouth);
+    return mouth;
   }
 
   private buildBlush(): void {
-    // Soft rosy cheek ovals — below and outside the eyes
     const blushMat = new THREE.MeshBasicMaterial({
       color: '#FF7BA5',
       transparent: true,
@@ -174,7 +180,6 @@ export class Avatar {
       );
       blush.scale.set(1.3, 0.75, 1);
       blush.position.set(side * 0.25, 0.03, 0.35);
-      // Orient to face outward along body surface
       blush.lookAt(
         blush.position.clone().add(new THREE.Vector3(side * 0.5, -0.1, 1)),
       );
@@ -192,7 +197,6 @@ export class Avatar {
       emissiveIntensity: 0.15,
     });
 
-    // Center knot
     const knot = new THREE.Mesh(
       new THREE.SphereGeometry(0.028, 16, 12),
       bowMat,
@@ -200,7 +204,6 @@ export class Avatar {
     knot.scale.set(1, 0.8, 0.8);
     this.bowGroup.add(knot);
 
-    // Two wing lobes — clearly visible as separate shapes
     for (const side of [-1, 1]) {
       const wing = new THREE.Mesh(
         new THREE.SphereGeometry(0.058, 20, 14),
@@ -212,7 +215,6 @@ export class Avatar {
       this.bowGroup.add(wing);
     }
 
-    // Sparkle dots near bow
     const sparkleMat = new THREE.MeshBasicMaterial({
       color: '#FFF8E0',
       transparent: true,
@@ -225,13 +227,11 @@ export class Avatar {
     sp2.position.set(0.12, 0.025, 0.01);
     this.bowGroup.add(sp2);
 
-    // Position bow centered on top of head
     this.bowGroup.position.set(0, 0.50, 0.10);
     this.headGroup.add(this.bowGroup);
   }
 
   private buildArm(mat: THREE.Material, side: number): THREE.Mesh {
-    // Short stubby nub arms — like the reference side view
     const arm = new THREE.Mesh(
       new THREE.CapsuleGeometry(0.042, 0.05, 8, 16),
       mat,
@@ -243,7 +243,6 @@ export class Avatar {
   }
 
   private buildFeet(mat: THREE.Material): void {
-    // Small round feet — close together under body
     for (const side of [-1, 1]) {
       const foot = new THREE.Mesh(
         new THREE.SphereGeometry(0.048, 16, 12),
@@ -256,40 +255,89 @@ export class Avatar {
   }
 
   private buildSpecularHighlights(): void {
-    // Tiny subtle glossy surface dots
     const hlMat = new THREE.MeshBasicMaterial({
       color: '#FFFFFF',
       transparent: true,
       opacity: 0.35,
     });
-
-    // Upper-left dot
     const d1 = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 6), hlMat);
     d1.position.set(-0.06, 0.34, 0.38);
     this.headGroup.add(d1);
 
-    // Smaller companion dot
     const d2 = new THREE.Mesh(new THREE.SphereGeometry(0.005, 8, 6), hlMat);
     d2.position.set(-0.02, 0.29, 0.40);
     this.headGroup.add(d2);
   }
 
-  /** Idle animation — gentle breathing squash/stretch + arm wave */
+  /** Per-frame update — idle animation + state-driven reactions */
   update(_delta: number, elapsed: number): void {
+    // Ease state blend toward 1
+    this.stateBlend = Math.min(1, this.stateBlend + _delta * 3.0);
+
+    // === Base idle animation (always active, damped by state) ===
+    const idleMix = this.currentState === 'idle' ? 1.0 : 0.4;
+
     // Breathing — squash and stretch
     const breathT = Math.sin(elapsed * 1.8) * 0.5 + 0.5;
-    const squash = 1.0 + breathT * 0.012;
-    const stretch = 1.0 - breathT * 0.008;
+    const squash = 1.0 + breathT * 0.012 * idleMix;
+    const stretch = 1.0 - breathT * 0.008 * idleMix;
     this.headGroup.scale.set(stretch, squash, stretch);
-    this.headGroup.position.y = breathT * 0.006;
+    this.headGroup.position.y = breathT * 0.006 * idleMix;
 
     // Gentle sway
-    this.headGroup.rotation.z = Math.sin(elapsed * 0.9) * 0.015;
+    this.headGroup.rotation.z = Math.sin(elapsed * 0.9) * 0.015 * idleMix;
 
-    // Right arm wave
-    this.rightArm.rotation.z = -0.5 + Math.sin(elapsed * 2.0) * 0.2;
+    // Right arm wave (idle only)
+    this.rightArm.rotation.z = -0.5 + Math.sin(elapsed * 2.0) * 0.2 * idleMix;
 
     // Bow subtle bounce
     this.bowGroup.rotation.z = Math.sin(elapsed * 1.5) * 0.04;
+
+    // Reset per-state overrides to defaults before applying
+    this.bodyMat.emissiveIntensity = this.baseEmissiveIntensity;
+    this.mouth.scale.set(1, 1, 1);
+    this.headGroup.rotation.x = 0;
+
+    // === State-specific reactions ===
+    switch (this.currentState) {
+      case 'listening':
+        this.updateListening(elapsed);
+        break;
+      case 'thinking':
+        this.updateThinking(elapsed);
+        break;
+      case 'speaking':
+        this.updateSpeaking(elapsed);
+        break;
+    }
+  }
+
+  /** Listening — body pulses with soft glow, leans forward slightly */
+  private updateListening(elapsed: number): void {
+    const pulse = Math.sin(elapsed * 3.0) * 0.5 + 0.5;
+    this.bodyMat.emissiveIntensity = this.baseEmissiveIntensity + pulse * 0.12 * this.stateBlend;
+    this.headGroup.rotation.x = -0.03 * this.stateBlend;
+    this.mouth.scale.y = 1.0 + 0.3 * this.stateBlend;
+  }
+
+  /** Thinking — gentle bounce, emissive shimmer */
+  private updateThinking(elapsed: number): void {
+    const bounce = Math.abs(Math.sin(elapsed * 4.0));
+    this.headGroup.position.y += bounce * 0.015 * this.stateBlend;
+    const shimmer = Math.sin(elapsed * 6.0) * 0.5 + 0.5;
+    this.bodyMat.emissiveIntensity = this.baseEmissiveIntensity + shimmer * 0.08 * this.stateBlend;
+  }
+
+  /** Speaking — mouth opens/closes rhythmically, body bobs */
+  private updateSpeaking(elapsed: number): void {
+    const mouthOpen = (Math.sin(elapsed * 12.0) * 0.5 + 0.5)
+                    * (Math.sin(elapsed * 7.3) * 0.3 + 0.7);
+    this.mouth.scale.y = 1.0 + mouthOpen * 1.2 * this.stateBlend;
+    this.mouth.scale.x = 1.0 + mouthOpen * 0.3 * this.stateBlend;
+
+    const bob = Math.sin(elapsed * 5.0) * 0.004;
+    this.headGroup.position.y += bob * this.stateBlend;
+
+    this.bodyMat.emissiveIntensity = this.baseEmissiveIntensity + 0.08 * this.stateBlend;
   }
 }

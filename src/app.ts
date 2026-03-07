@@ -9,6 +9,8 @@ import { CommManager } from '@/comm/protocol.ts';
 import { AudioManager } from '@/audio/audio-manager.ts';
 import { TTSPlayer } from '@/audio/tts-player.ts';
 import { VoiceManager } from '@/voice/voice-manager.ts';
+import { Webcam } from '@/tracking/webcam.ts';
+import { FaceTracker } from '@/tracking/face-tracker.ts';
 import { HUD } from '@/ui/hud.ts';
 import { DEFAULT_CONFIG, type PatynaConfig } from '@/types/config.ts';
 
@@ -21,6 +23,8 @@ export class App {
   private audioManager: AudioManager;
   private ttsPlayer: TTSPlayer;
   private voiceManager: VoiceManager;
+  private webcam: Webcam;
+  private faceTracker: FaceTracker;
   private hud: HUD;
   private envMesh: THREE.Mesh | null = null;
 
@@ -38,6 +42,8 @@ export class App {
     this.audioManager = new AudioManager(config);
     this.ttsPlayer = new TTSPlayer(this.audioManager);
     this.voiceManager = new VoiceManager();
+    this.webcam = new Webcam();
+    this.faceTracker = new FaceTracker(this.webcam);
 
     // 3D Scene
     this.sceneManager = new SceneManager(container, config);
@@ -96,14 +102,6 @@ export class App {
       this.stateMachine.reset();
     });
 
-    // Text responses -> HUD transcript
-    eventBus.on('comm:textDelta', ({ text }) => {
-      eventBus.emit('voice:transcript', { text, isFinal: false });
-    });
-    eventBus.on('comm:textDone', ({ text }) => {
-      eventBus.emit('voice:transcript', { text, isFinal: true });
-    });
-
     // Audio playback end -> back to idle (if currently speaking)
     eventBus.on('audio:playbackEnd', () => {
       if (this.stateMachine.state === 'speaking') {
@@ -124,8 +122,13 @@ export class App {
     eventBus.on('voice:transcript', ({ text, isFinal }) => {
       if (isFinal && this.comm.connected) {
         this.comm.send({ type: 'transcript', text, isFinal: true });
-        // Transition to thinking after sending transcript
-        if (this.stateMachine.state === 'listening') {
+        // Transition to thinking (handle both voice and text input paths)
+        const s = this.stateMachine.state;
+        if (s === 'idle') {
+          // Text input path: idle -> listening -> thinking
+          this.stateMachine.transition('listening');
+          this.stateMachine.transition('thinking');
+        } else if (s === 'listening') {
           this.stateMachine.transition('thinking');
         }
       }
@@ -141,7 +144,30 @@ export class App {
     // Initialize voice input (VAD + STT, requests mic permission)
     await this.voiceManager.init();
 
+    // Initialize face tracking (webcam + MediaPipe)
+    try {
+      const camOk = await this.webcam.start();
+      if (camOk) {
+        await this.faceTracker.init();
+        this.faceTracker.start();
+      }
+    } catch (err) {
+      console.warn('[Patyna] Face tracking unavailable:', err);
+    }
+
     // Connect to backend
     this.comm.connect();
+  }
+
+  /** Tear down all resources. */
+  async destroy(): Promise<void> {
+    this.faceTracker.destroy();
+    this.webcam.destroy();
+    await this.voiceManager.destroy();
+    this.ttsPlayer.destroy();
+    this.audioManager.close();
+    this.comm.disconnect();
+    this.hud.destroy();
+    console.log('[Patyna] Destroyed');
   }
 }
