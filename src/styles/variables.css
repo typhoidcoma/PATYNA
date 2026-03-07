@@ -1,0 +1,35 @@
+:root {
+  /* Colors — Patyna Design System */
+  --color-graphite: #1C1D21;
+  --color-stone: #E7E7E4;
+  --color-white: #FFFFFF;
+  --color-oxide-blue: #4F6F8C;
+
+  /* Borders */
+  --color-border: #E6E6E6;
+
+  /* Typography */
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --tracking-wide: 0.02em;
+
+  /* Radii */
+  --radius-panel: 12px;
+  --radius-button: 10px;
+  --radius-small: 6px;
+
+  /* Transitions — "smooth, slow, organic" motion language */
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 600ms;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+}
