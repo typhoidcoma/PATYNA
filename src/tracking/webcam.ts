@@ -1,7 +1,8 @@
 /**
  * Manages webcam access — provides a hidden <video> element
  * for the face tracker to consume frames from.
- * Gracefully degrades if camera is unavailable.
+ * Supports receiving a pre-existing video stream (from shared getUserMedia)
+ * or requesting its own.
  */
 export class Webcam {
   private video: HTMLVideoElement;
@@ -30,6 +31,28 @@ export class Webcam {
     return this.video;
   }
 
+  /**
+   * Start the webcam with a pre-existing video stream.
+   * This avoids a second getUserMedia call when mic+camera
+   * are requested together.
+   */
+  async startWithStream(videoStream: MediaStream): Promise<boolean> {
+    try {
+      this.stream = videoStream;
+      this.video.srcObject = videoStream;
+      await this.video.play();
+      this._ready = true;
+      console.log('[Webcam] Started (shared stream)',
+        `${this.video.videoWidth}x${this.video.videoHeight}`);
+      return true;
+    } catch (err) {
+      console.warn('[Webcam] Failed to start with stream:', err);
+      this._ready = false;
+      return false;
+    }
+  }
+
+  /** Request camera access directly (fallback if no shared stream). */
   async start(): Promise<boolean> {
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
@@ -39,7 +62,8 @@ export class Webcam {
       this.video.srcObject = this.stream;
       await this.video.play();
       this._ready = true;
-      console.log('[Webcam] Started', `${this.video.videoWidth}x${this.video.videoHeight}`);
+      console.log('[Webcam] Started',
+        `${this.video.videoWidth}x${this.video.videoHeight}`);
       return true;
     } catch (err) {
       console.warn('[Webcam] Camera not available:', err);

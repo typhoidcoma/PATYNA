@@ -34,13 +34,17 @@ export class VoiceManager {
     return this._micAvailable;
   }
 
-  /** Initialize mic + VAD + wire events. Call after user gesture. */
-  async init(): Promise<void> {
+  /**
+   * Initialize mic + VAD + wire events. Call after user gesture.
+   * @param audioStream — Optional pre-existing audio MediaStream.
+   *   If provided, VAD uses this instead of requesting mic access again.
+   */
+  async init(audioStream?: MediaStream): Promise<void> {
     if (this._initialized) return;
 
-    // Initialize VAD (requests mic permission internally)
+    // Initialize VAD (requests mic permission internally if no stream given)
     try {
-      await this.vad.init();
+      await this.vad.init(audioStream);
       this._micAvailable = true;
     } catch (err) {
       console.warn('[Voice] VAD init failed (mic may not be available):', err);

@@ -1,10 +1,21 @@
-.hud {
+/* ════════════════════════════════════════════
+   Scene wrapper — flex:1 area for 3D canvas
+   ════════════════════════════════════════════ */
+.scene-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ════════════════════════════════════════════
+   Overlay — positioned over the 3D scene
+   ════════════════════════════════════════════ */
+.hud-overlay {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 10;
-  display: flex;
-  flex-direction: column;
 }
 
 /* Top bar: logo + status */
@@ -13,7 +24,6 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-lg);
-  flex-shrink: 0;
 }
 
 .hud-wordmark {
@@ -91,117 +101,48 @@
   background: #666;
 }
 
-/* ── AI response area (persistent text below avatar) ── */
-.hud-response-area {
-  flex: 1;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 0 var(--space-lg);
-  pointer-events: none;
-  min-height: 0;
+/* Media status icons (mic/camera) */
+.hud-media {
+  font-size: 11px;
+  margin-left: var(--space-sm);
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-smooth);
+  user-select: none;
+  letter-spacing: 0.15em;
 }
 
-.hud-response {
-  font-size: 15px;
+.hud-media.visible {
+  opacity: 0.4;
+}
+
+/* Mood indicator */
+.hud-mood {
+  font-size: 11px;
   color: var(--color-stone);
   opacity: 0;
-  max-width: 560px;
-  text-align: center;
-  line-height: 1.6;
+  margin-left: var(--space-sm);
+  font-weight: var(--font-weight-medium);
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
   transition: opacity var(--duration-normal) var(--ease-smooth);
-  max-height: 35vh;
-  overflow-y: auto;
-  padding-bottom: var(--space-md);
-  pointer-events: all;
-  user-select: text;
+  user-select: none;
 }
 
-.hud-response-area.visible .hud-response {
-  opacity: 0.8;
+.hud-mood.visible {
+  opacity: 0.45;
 }
 
-/* ── Bottom area: user text + input ── */
-.hud-bottom {
-  flex-shrink: 0;
-  padding: var(--space-sm) var(--space-lg) var(--space-lg);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-sm);
-}
+.hud-mood[data-emotion="joy"] { color: #FFD740; }
+.hud-mood[data-emotion="trust"] { color: #81C784; }
+.hud-mood[data-emotion="fear"] { color: #CE93D8; }
+.hud-mood[data-emotion="surprise"] { color: #4FC3F7; }
+.hud-mood[data-emotion="sadness"] { color: #90A4AE; }
+.hud-mood[data-emotion="disgust"] { color: #A5D6A7; }
+.hud-mood[data-emotion="anger"] { color: #EF9A9A; }
+.hud-mood[data-emotion="anticipation"] { color: #FFB74D; }
 
-.hud-user-text {
-  font-size: 13px;
-  color: var(--color-stone);
-  opacity: 0;
-  max-width: 500px;
-  text-align: center;
-  line-height: 1.5;
-  transition: opacity var(--duration-normal) var(--ease-smooth);
-  min-height: 1.4em;
-}
-
-.hud-user-text.visible {
-  opacity: 0.5;
-}
-
-/* Text input — always visible */
-.hud-input-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  width: 100%;
-  max-width: 420px;
-  pointer-events: all;
-}
-
-.hud-input {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-button);
-  padding: 10px 14px;
-  font-family: var(--font-family);
-  font-size: 14px;
-  color: var(--color-stone);
-  outline: none;
-  transition: border-color var(--duration-fast) var(--ease-smooth);
-}
-
-.hud-input::placeholder {
-  color: var(--color-stone);
-  opacity: 0.3;
-}
-
-.hud-input:focus {
-  border-color: var(--color-oxide-blue);
-}
-
-.hud-send {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-small);
-  border: 1px solid var(--color-border);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--color-stone);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--duration-fast) var(--ease-smooth);
-  font-size: 16px;
-}
-
-.hud-send:hover {
-  border-color: var(--color-oxide-blue);
-  background: rgba(79, 111, 140, 0.15);
-}
-
-.hud-send:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
+.hud-mood.visible[data-emotion] {
+  opacity: 0.6;
 }
 
 /* Error toast */
@@ -270,4 +211,117 @@
 @keyframes pulse {
   0%, 100% { transform: scale(1); opacity: inherit; }
   50% { transform: scale(1.4); opacity: 0.6; }
+}
+
+/* ════════════════════════════════════════════
+   Panel — real DOM below the 3D scene
+   ════════════════════════════════════════════ */
+.hud-panel {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--color-graphite);
+  border-top: 1px solid var(--color-border);
+}
+
+/* User speech text (brief, fades) */
+.hud-user-text {
+  font-size: 12px;
+  color: var(--color-stone);
+  opacity: 0;
+  max-width: 500px;
+  text-align: center;
+  line-height: 1.4;
+  transition: opacity var(--duration-normal) var(--ease-smooth);
+  min-height: 0;
+}
+
+.hud-user-text.visible {
+  opacity: 0.5;
+  min-height: 1.2em;
+}
+
+/* Text input — always visible */
+.hud-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  max-width: 420px;
+}
+
+.hud-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  padding: 8px 14px;
+  font-family: var(--font-family);
+  font-size: 13px;
+  color: var(--color-stone);
+  outline: none;
+  transition: border-color var(--duration-fast) var(--ease-smooth);
+}
+
+.hud-input::placeholder {
+  color: var(--color-stone);
+  opacity: 0.3;
+}
+
+.hud-input:focus {
+  border-color: var(--color-oxide-blue);
+}
+
+.hud-send {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-small);
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-stone);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--duration-fast) var(--ease-smooth);
+  font-size: 14px;
+}
+
+.hud-send:hover {
+  border-color: var(--color-oxide-blue);
+  background: rgba(28, 142, 119, 0.15);
+}
+
+.hud-send:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* AI response area — fixed height container, never shifts layout */
+.hud-response-area {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  height: 3.2em;
+  overflow: hidden;
+}
+
+.hud-response {
+  font-size: 11px;
+  color: var(--color-stone);
+  opacity: 0;
+  text-align: center;
+  line-height: 1.4;
+  max-width: 480px;
+  overflow: hidden;
+  user-select: text;
+  transition: opacity var(--duration-normal) var(--ease-smooth);
+}
+
+.hud-response-area.visible .hud-response {
+  opacity: 0.4;
 }

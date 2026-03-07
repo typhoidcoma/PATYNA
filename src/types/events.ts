@@ -1,4 +1,5 @@
 import type { AppState } from './config.ts';
+import type { MoodData } from './messages.ts';
 
 export interface EventMap {
   // State changes
@@ -18,11 +19,15 @@ export interface EventMap {
   'audio:playbackStart': void;
   'audio:playbackEnd': void;
 
-  // Communication
+  // Media permissions
+  'media:status': { mic: boolean; camera: boolean };
+
+  // Communication (Aelora)
   'comm:connected': void;
   'comm:disconnected': void;
+  'comm:ready': { sessionId: string };
   'comm:textDelta': { text: string };
   'comm:textDone': { text: string };
-  'comm:status': { state: 'thinking' | 'speaking' | 'idle' };
+  'comm:mood': MoodData;
   'comm:error': { code: string; message: string };
 }

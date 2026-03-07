@@ -1,6 +1,7 @@
 /**
  * Voice Activity Detection wrapper around @ricky0123/vad-web (Silero).
  * Detects when the user starts/stops speaking.
+ * Supports receiving a pre-existing audio stream (from shared getUserMedia).
  */
 
 import { MicVAD } from '@ricky0123/vad-web';
@@ -19,12 +20,16 @@ export class VAD {
     return this._active;
   }
 
-  /** Initialize and start listening for speech. */
-  async init(): Promise<void> {
+  /**
+   * Initialize and start listening for speech.
+   * @param audioStream — Optional pre-existing audio MediaStream.
+   *   If provided, VAD uses this instead of calling getUserMedia internally.
+   */
+  async init(audioStream?: MediaStream): Promise<void> {
     if (this.micVAD) return;
 
     try {
-      this.micVAD = await MicVAD.new({
+      const opts: Record<string, unknown> = {
         model: 'v5',
         baseAssetPath: '/vad/',
         startOnLoad: true,
@@ -45,7 +50,14 @@ export class VAD {
           // Speech was too short — treat as false positive
           this._active = false;
         },
-      });
+      };
+
+      // If we have a shared audio stream, inject it so VAD doesn't call getUserMedia again
+      if (audioStream) {
+        opts.getStream = () => Promise.resolve(audioStream);
+      }
+
+      this.micVAD = await MicVAD.new(opts as any);
 
       console.log('[VAD] Silero initialized');
     } catch (err) {

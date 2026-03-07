@@ -1,14 +1,32 @@
-/** Client -> Server messages */
-export type ClientMessage =
-  | { type: 'audio_chunk'; data: ArrayBuffer; format: 'pcm_16k' | 'pcm_24k' }
-  | { type: 'text_input'; text: string }
-  | { type: 'transcript'; text: string; isFinal: boolean }
-  | { type: 'config'; settings: Record<string, unknown> };
+/**
+ * Aelora WebSocket protocol message types.
+ *
+ * Client → Server: init (bind session), message (user text), clear (reset history)
+ * Server → Client: ready, token (stream chunk), done, error, event (mood etc.)
+ */
 
-/** Server -> Client messages */
+// ── Client → Server ──
+
+export type ClientMessage =
+  | { type: 'init'; sessionId: string; userId?: string; username?: string }
+  | { type: 'message'; content: string }
+  | { type: 'clear' };
+
+// ── Server → Client ──
+
+export interface MoodData {
+  active: boolean;
+  emotion: 'joy' | 'trust' | 'fear' | 'surprise' | 'sadness' | 'disgust' | 'anger' | 'anticipation';
+  intensity: 'low' | 'mid' | 'high';
+  label: string;         // Resolved emotion, e.g. "serenity", "ecstasy"
+  secondary?: string;    // Blend emotion
+  note?: string;         // Context
+  updatedAt: string;
+}
+
 export type ServerMessage =
-  | { type: 'audio_chunk'; data: ArrayBuffer; format: 'pcm_16k' | 'pcm_24k' }
-  | { type: 'text_delta'; text: string }
-  | { type: 'text_done'; text: string }
-  | { type: 'status'; state: 'thinking' | 'speaking' | 'idle' }
-  | { type: 'error'; code: string; message: string };
+  | { type: 'ready'; sessionId: string }
+  | { type: 'token'; content: string }
+  | { type: 'done'; reply: string }
+  | { type: 'error'; error: string }
+  | { type: 'event'; event: string; data: unknown };

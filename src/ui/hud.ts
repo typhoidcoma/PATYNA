@@ -1,16 +1,21 @@
 import { eventBus } from '@/core/event-bus.ts';
 import type { AppState } from '@/types/config.ts';
+import type { MoodData } from '@/types/messages.ts';
 import './hud.css';
 
 /**
- * Heads-Up Display — overlays connection status, state indicator,
- * persistent AI response text, user speech indicator, text input, and error toasts.
+ * Heads-Up Display — split into two sections:
+ *   1. Overlay (inside scene wrapper): top bar, toast, start prompt — never obscured by panel
+ *   2. Panel (below scene wrapper): text input + AI response — separate from the 3D scene
  */
 export class HUD {
-  private root: HTMLDivElement;
+  private overlay: HTMLDivElement;
+  private panel: HTMLDivElement;
   private statusDot: HTMLDivElement;
   private statusLabel: HTMLSpanElement;
   private connDot: HTMLDivElement;
+  private mediaIcons: HTMLSpanElement;
+  private moodLabel: HTMLSpanElement;
   private responseArea: HTMLDivElement;
   private responseText: HTMLDivElement;
   private responseBuffer = '';
@@ -26,9 +31,16 @@ export class HUD {
   /** Resolves when the user clicks "begin" */
   readonly ready: Promise<void>;
 
-  constructor(container: HTMLElement) {
-    this.root = document.createElement('div');
-    this.root.className = 'hud';
+  /**
+   * @param sceneWrap — The scene wrapper div (overlay is positioned absolute inside this)
+   * @param container — The root #app container (panel is appended after sceneWrap)
+   */
+  constructor(sceneWrap: HTMLElement, container: HTMLElement) {
+    // ════════════════════════════════════════════
+    // OVERLAY — positioned absolute over the 3D scene
+    // ════════════════════════════════════════════
+    this.overlay = document.createElement('div');
+    this.overlay.className = 'hud-overlay';
 
     // ── Top bar ──
     const top = document.createElement('div');
@@ -46,7 +58,13 @@ export class HUD {
     this.connDot.className = 'hud-conn';
     this.connDot.dataset.conn = 'disconnected';
 
-    leftGroup.append(wordmark, this.connDot);
+    this.mediaIcons = document.createElement('span');
+    this.mediaIcons.className = 'hud-media';
+
+    this.moodLabel = document.createElement('span');
+    this.moodLabel.className = 'hud-mood';
+
+    leftGroup.append(wordmark, this.connDot, this.mediaIcons, this.moodLabel);
 
     const status = document.createElement('div');
     status.className = 'hud-status';
@@ -66,17 +84,22 @@ export class HUD {
     this.toast = document.createElement('div');
     this.toast.className = 'hud-toast';
 
-    // ── AI Response area (persistent) ──
-    this.responseArea = document.createElement('div');
-    this.responseArea.className = 'hud-response-area';
+    // ── Start overlay ──
+    this.startOverlay = document.createElement('div');
+    this.startOverlay.className = 'hud-start';
+    const startText = document.createElement('span');
+    startText.className = 'hud-start-text';
+    startText.textContent = 'Click to begin';
+    this.startOverlay.append(startText);
 
-    this.responseText = document.createElement('div');
-    this.responseText.className = 'hud-response';
-    this.responseArea.appendChild(this.responseText);
+    this.overlay.append(top, this.toast, this.startOverlay);
+    sceneWrap.appendChild(this.overlay);
 
-    // ── Bottom area ──
-    const bottom = document.createElement('div');
-    bottom.className = 'hud-bottom';
+    // ════════════════════════════════════════════
+    // PANEL — real DOM element below the 3D scene
+    // ════════════════════════════════════════════
+    this.panel = document.createElement('div');
+    this.panel.className = 'hud-panel';
 
     // User speech text (brief, fades)
     this.userText = document.createElement('div');
@@ -98,18 +121,17 @@ export class HUD {
     this.sendBtn.disabled = true;
 
     this.inputRow.append(this.input, this.sendBtn);
-    bottom.append(this.userText, this.inputRow);
 
-    // ── Start overlay ──
-    this.startOverlay = document.createElement('div');
-    this.startOverlay.className = 'hud-start';
-    const startText = document.createElement('span');
-    startText.className = 'hud-start-text';
-    startText.textContent = 'Click to begin';
-    this.startOverlay.append(startText);
+    // AI Response area (persistent, below input)
+    this.responseArea = document.createElement('div');
+    this.responseArea.className = 'hud-response-area';
 
-    this.root.append(top, this.toast, this.responseArea, bottom, this.startOverlay);
-    container.appendChild(this.root);
+    this.responseText = document.createElement('div');
+    this.responseText.className = 'hud-response';
+    this.responseArea.appendChild(this.responseText);
+
+    this.panel.append(this.userText, this.inputRow, this.responseArea);
+    container.appendChild(this.panel);
 
     // ── Ready promise ──
     this.ready = new Promise((resolve) => {
@@ -136,9 +158,14 @@ export class HUD {
     // User speech transcripts (from STT only)
     eventBus.on('voice:transcript', ({ text, isFinal }) => {
       this.setUserText(text, isFinal);
+      // Clear response buffer when user sends a new message
+      // (next textDelta will start fresh)
+      if (isFinal) {
+        this.responseBuffer = '';
+      }
     });
 
-    // AI response text (streamed from backend)
+    // AI response text (streamed from Aelora)
     eventBus.on('comm:textDelta', ({ text }) => {
       this.appendResponse(text);
     });
@@ -152,6 +179,16 @@ export class HUD {
     });
     eventBus.on('comm:disconnected', () => {
       this.connDot.dataset.conn = 'disconnected';
+    });
+
+    // Media status (mic/camera indicators)
+    eventBus.on('media:status', ({ mic, camera }) => {
+      this.setMediaStatus(mic, camera);
+    });
+
+    // Mood updates
+    eventBus.on('comm:mood', (mood) => {
+      this.setMood(mood);
     });
 
     // Errors
@@ -185,6 +222,32 @@ export class HUD {
     this.responseBuffer = '';
     this.responseText.textContent = '';
     this.responseArea.classList.remove('visible');
+  }
+
+  // ── Media status ──
+
+  private setMediaStatus(mic: boolean, camera: boolean): void {
+    const parts: string[] = [];
+    parts.push(mic ? '\u{1F3A4}' : '\u{1F3A4}\u2715');
+    parts.push(camera ? '\u{1F4F7}' : '\u{1F4F7}\u2715');
+    this.mediaIcons.textContent = parts.join(' ');
+    this.mediaIcons.dataset.mic = mic ? 'on' : 'off';
+    this.mediaIcons.dataset.camera = camera ? 'on' : 'off';
+    this.mediaIcons.classList.add('visible');
+  }
+
+  // ── Mood methods ──
+
+  private setMood(mood: MoodData): void {
+    if (!mood.active) {
+      this.moodLabel.textContent = '';
+      this.moodLabel.classList.remove('visible');
+      return;
+    }
+    this.moodLabel.textContent = mood.label;
+    this.moodLabel.dataset.emotion = mood.emotion;
+    this.moodLabel.dataset.intensity = mood.intensity;
+    this.moodLabel.classList.add('visible');
   }
 
   // ── User text methods ──
@@ -225,6 +288,7 @@ export class HUD {
   }
 
   destroy(): void {
-    this.root.remove();
+    this.overlay.remove();
+    this.panel.remove();
   }
 }

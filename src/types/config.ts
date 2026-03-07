@@ -3,6 +3,10 @@ export type AppState = 'idle' | 'listening' | 'thinking' | 'speaking';
 export interface PatynaConfig {
   websocket: {
     url: string;
+    apiKey?: string;
+    sessionId: string;
+    userId?: string;
+    username?: string;
     reconnectDelay: number;
     maxReconnectDelay: number;
   };
@@ -25,7 +29,8 @@ export interface PatynaConfig {
 
 export const DEFAULT_CONFIG: PatynaConfig = {
   websocket: {
-    url: 'ws://localhost:8080',
+    url: 'wss://brainso101.tail0c86da.ts.net/ws',
+    sessionId: 'patyna-web',
     reconnectDelay: 1000,
     maxReconnectDelay: 30000,
   },

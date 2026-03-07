@@ -1,33 +1,41 @@
 /**
- * Protocol layer — routes WebSocket messages to/from the event bus.
- * This is the single point of contact between comm and the rest of the app.
+ * Protocol layer — routes Aelora WebSocket messages to/from the event bus.
+ *
+ * On connect → sends init (binds session).
+ * Incoming: ready, token (stream), done, error, event (mood).
+ * Outgoing: message (user text), clear.
  */
 
 import type { PatynaConfig } from '@/types/config.ts';
-import type { ClientMessage } from '@/types/messages.ts';
+import type { ClientMessage, MoodData } from '@/types/messages.ts';
 import { eventBus } from '@/core/event-bus.ts';
 import { WebSocketClient, type FrameHandler } from './websocket-client.ts';
-import {
-  decodeBinaryFrame,
-  decodeTextMessage,
-  encodeAudioFrame,
-  encodeTextMessage,
-} from './message-codec.ts';
+import { decodeMessage, encodeMessage } from './message-codec.ts';
 
 export class CommManager {
   private client: WebSocketClient;
+  private config: PatynaConfig;
 
   constructor(config: PatynaConfig) {
+    this.config = config;
+
     const handler: FrameHandler = {
       onOpen: () => this.onOpen(),
       onClose: (_code, _reason) => this.onClose(),
       onText: (data) => this.onText(data),
-      onBinary: (data) => this.onBinary(data),
+      onBinary: (_data) => { /* Aelora doesn't send binary — ignore */ },
     };
+
+    // Build WS URL with optional API key
+    let wsUrl = config.websocket.url;
+    if (config.websocket.apiKey) {
+      const sep = wsUrl.includes('?') ? '&' : '?';
+      wsUrl += `${sep}token=${encodeURIComponent(config.websocket.apiKey)}`;
+    }
 
     this.client = new WebSocketClient(
       {
-        url: config.websocket.url,
+        url: wsUrl,
         reconnectDelay: config.websocket.reconnectDelay,
         maxReconnectDelay: config.websocket.maxReconnectDelay,
       },
@@ -49,25 +57,34 @@ export class CommManager {
     this.client.disconnect();
   }
 
-  /** Send a client message (text input, transcript, config). */
-  send(msg: ClientMessage): void {
-    if (msg.type === 'audio_chunk') {
-      this.client.sendBinary(encodeAudioFrame(msg.data, msg.format));
-    } else {
-      this.client.sendText(encodeTextMessage(msg));
-    }
+  /** Send a user message to the LLM. */
+  sendMessage(text: string): void {
+    this.sendRaw({ type: 'message', content: text });
   }
 
-  /** Send raw audio PCM data (convenience for voice pipeline). */
-  sendAudio(pcmData: ArrayBuffer, format: 'pcm_16k' | 'pcm_24k' = 'pcm_24k'): void {
-    this.client.sendBinary(encodeAudioFrame(pcmData, format));
+  /** Clear conversation history on the server. */
+  clearHistory(): void {
+    this.sendRaw({ type: 'clear' });
+  }
+
+  /** Send any client message. */
+  private sendRaw(msg: ClientMessage): void {
+    this.client.sendText(encodeMessage(msg));
   }
 
   // --- Internal handlers ---
 
   private onOpen(): void {
-    console.log('[Comm] Connected');
+    console.log('[Comm] Connected — sending init');
     eventBus.emit('comm:connected');
+
+    // Bind session immediately
+    this.sendRaw({
+      type: 'init',
+      sessionId: this.config.websocket.sessionId,
+      userId: this.config.websocket.userId,
+      username: this.config.websocket.username,
+    });
   }
 
   private onClose(): void {
@@ -76,39 +93,43 @@ export class CommManager {
   }
 
   private onText(raw: string): void {
-    const msg = decodeTextMessage(raw);
+    const msg = decodeMessage(raw);
     if (!msg) return;
 
     switch (msg.type) {
-      case 'text_delta':
-        eventBus.emit('comm:textDelta', { text: msg.text });
+      case 'ready':
+        console.log('[Comm] Session ready:', msg.sessionId);
+        eventBus.emit('comm:ready', { sessionId: msg.sessionId });
         break;
-      case 'text_done':
-        eventBus.emit('comm:textDone', { text: msg.text });
+
+      case 'token':
+        eventBus.emit('comm:textDelta', { text: msg.content });
         break;
-      case 'status':
-        eventBus.emit('comm:status', { state: msg.state });
+
+      case 'done':
+        eventBus.emit('comm:textDone', { text: msg.reply });
         break;
+
       case 'error':
-        eventBus.emit('comm:error', { code: msg.code, message: msg.message });
+        eventBus.emit('comm:error', { code: 'server', message: msg.error });
         break;
+
+      case 'event':
+        this.handleEvent(msg.event, msg.data);
+        break;
+
       default:
-        console.warn('[Comm] Unhandled text message type:', (msg as { type: string }).type);
+        console.warn('[Comm] Unhandled message type:', (msg as { type: string }).type);
     }
   }
 
-  private onBinary(data: ArrayBuffer): void {
-    const msg = decodeBinaryFrame(data);
-    if (!msg) return;
-
-    if (msg.type === 'audio_chunk') {
-      // Convert 16-bit PCM to Float32 for the audio pipeline
-      const pcm16 = new Int16Array(msg.data);
-      const float32 = new Float32Array(pcm16.length);
-      for (let i = 0; i < pcm16.length; i++) {
-        float32[i] = pcm16[i] / 32768;
-      }
-      eventBus.emit('audio:chunkReceived', { data: float32 });
+  private handleEvent(event: string, data: unknown): void {
+    switch (event) {
+      case 'mood':
+        eventBus.emit('comm:mood', data as MoodData);
+        break;
+      default:
+        console.log('[Comm] Unhandled event:', event, data);
     }
   }
 }

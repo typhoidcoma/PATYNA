@@ -3,10 +3,10 @@
   --color-graphite: #1C1D21;
   --color-stone: #E7E7E4;
   --color-white: #FFFFFF;
-  --color-oxide-blue: #4F6F8C;
+  --color-oxide-blue: #1C8E77;
 
-  /* Borders */
-  --color-border: #E6E6E6;
+  /* Borders — subtle on dark backgrounds */
+  --color-border: rgba(255, 255, 255, 0.08);
 
   /* Typography */
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;

@@ -1,20 +1,21 @@
 import * as THREE from 'three';
 
 /**
- * Creates a subtle contour-field background plane.
- * Topographic lines at 2-4% opacity per design system.
- * Animated slowly for organic feel.
+ * Creates an ambient environment background.
+ * - Radial gradient: soft teal glow behind character, fading to dark edges
+ * - Contour field: slow-moving topographic lines at low opacity
+ * - Sparkle particles: floating luminous dots for ethereal feel
  */
 export function createEnvironment(scene: THREE.Scene): THREE.Mesh {
-  const geometry = new THREE.PlaneGeometry(10, 10);
+  const geometry = new THREE.PlaneGeometry(12, 12);
 
   const material = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
     uniforms: {
       uTime: { value: 0 },
-      uColor: { value: new THREE.Color('#4F6F8C') },
-      uOpacity: { value: 0.035 },
+      uTeal: { value: new THREE.Color('#1C8E77') },
+      uGlow: { value: new THREE.Color('#63E6C7') },
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
@@ -25,26 +26,75 @@ export function createEnvironment(scene: THREE.Scene): THREE.Mesh {
     `,
     fragmentShader: /* glsl */ `
       uniform float uTime;
-      uniform vec3 uColor;
-      uniform float uOpacity;
+      uniform vec3 uTeal;
+      uniform vec3 uGlow;
       varying vec2 vUv;
 
-      void main() {
-        // Scale UV for contour density
-        vec2 p = vUv * 8.0;
+      // Simple pseudo-random
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+      }
 
-        // Animated contour field — slow organic movement
-        float field = sin(p.x * 3.0 + uTime * 0.15)
-                    + sin(p.y * 2.5 - uTime * 0.1)
-                    + sin((p.x + p.y) * 1.8 + uTime * 0.08);
+      void main() {
+        vec2 uv = vUv;
+        vec2 center = uv - 0.5;
+        float dist = length(center);
+
+        // ── Radial gradient: soft teal glow behind character ──
+        float glow = exp(-dist * dist * 4.0) * 0.28;
+        vec3 glowColor = uGlow * glow;
+
+        // ── Contour field ──
+        vec2 p = uv * 8.0;
+        float field = sin(p.x * 3.0 + uTime * 0.12)
+                    + sin(p.y * 2.5 - uTime * 0.08)
+                    + sin((p.x + p.y) * 1.8 + uTime * 0.06);
         field *= 0.333;
 
-        // Create contour lines from the field
         float contour = abs(fract(field * 3.0) - 0.5);
-        contour = smoothstep(0.0, 0.06, contour);
+        contour = smoothstep(0.0, 0.05, contour);
         float line = 1.0 - contour;
 
-        gl_FragColor = vec4(uColor, line * uOpacity);
+        // Fade contours toward edges (stronger near center)
+        float contourFade = smoothstep(0.65, 0.1, dist);
+        vec3 contourColor = uTeal * line * 0.08 * contourFade;
+
+        // ── Sparkle particles ──
+        float sparkle = 0.0;
+        for (int i = 0; i < 4; i++) {
+          float fi = float(i);
+          vec2 grid = floor(uv * (14.0 + fi * 5.0));
+          float h = hash(grid + fi * 10.0);
+
+          // ~25% of cells have a sparkle
+          if (h > 0.75) {
+            vec2 cellUv = fract(uv * (14.0 + fi * 5.0));
+            vec2 sparklePos = vec2(
+              hash(grid + fi * 20.0 + 1.0),
+              hash(grid + fi * 20.0 + 2.0)
+            );
+            // Slow drift
+            sparklePos += vec2(
+              sin(uTime * 0.15 + h * 6.28) * 0.1,
+              cos(uTime * 0.12 + h * 3.14) * 0.1
+            );
+            float d = length(cellUv - sparklePos);
+            // Twinkle
+            float twinkle = sin(uTime * (1.2 + h * 2.5) + h * 6.28) * 0.5 + 0.5;
+            twinkle *= twinkle; // sharper pulse
+            float dot = smoothstep(0.07, 0.0, d) * twinkle;
+            // Fade sparkles at edges
+            dot *= smoothstep(0.65, 0.15, dist);
+            sparkle += dot * (0.12 + fi * 0.02);
+          }
+        }
+        vec3 sparkleColor = uGlow * sparkle;
+
+        // ── Combine ──
+        vec3 color = glowColor + contourColor + sparkleColor;
+        float alpha = glow + line * 0.08 * contourFade + sparkle;
+
+        gl_FragColor = vec4(color, alpha);
       }
     `,
   });
