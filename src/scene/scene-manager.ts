@@ -71,10 +71,15 @@ export class SceneManager {
     this.composer.addPass(new OutputPass());
 
     // Resize handling — observe the container so sidebar toggle, etc. are caught
+    // Only resize when dimensions actually change to avoid canvas clear flash
+    let lastW = container.clientWidth;
+    let lastH = container.clientHeight;
     const onResize = () => {
       const w = container.clientWidth;
       const h = container.clientHeight;
-      if (w === 0 || h === 0) return;
+      if (w === 0 || h === 0 || (w === lastW && h === lastH)) return;
+      lastW = w;
+      lastH = h;
       this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(w, h);
