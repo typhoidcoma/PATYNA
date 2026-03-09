@@ -81,14 +81,14 @@ export class HUD {
     this.camBtn.title = 'Toggle camera';
 
     this.ttsBtn = document.createElement('button');
-    this.ttsBtn.className = 'hud-toggle-btn visible';
+    this.ttsBtn.className = 'hud-toggle-btn';
     this.ttsBtn.dataset.kind = 'tts';
     this.ttsBtn.dataset.active = 'off';
     this.ttsBtn.textContent = '\u{1F50A}';
     this.ttsBtn.title = 'Toggle voice (ElevenLabs TTS)';
 
     this.dashBtn = document.createElement('button');
-    this.dashBtn.className = 'hud-toggle-btn visible';
+    this.dashBtn.className = 'hud-toggle-btn';
     this.dashBtn.dataset.kind = 'dash';
     this.dashBtn.dataset.active = 'on';
     this.dashBtn.textContent = '\u2630';
@@ -317,8 +317,6 @@ export class HUD {
     this.camEnabled = camera;
     this.micBtn.dataset.active = mic ? 'on' : 'off';
     this.camBtn.dataset.active = camera ? 'on' : 'off';
-    this.micBtn.classList.add('visible');
-    this.camBtn.classList.add('visible');
   }
 
   // ── Mood methods ──

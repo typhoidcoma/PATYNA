@@ -144,6 +144,9 @@ export class App {
       }
       this.fetchDashboardData();
       this.startDashboardRefresh();
+
+      // Auto-start camera after connection is established
+      eventBus.emit('media:cameraToggle', { enabled: true });
     });
 
     eventBus.on('comm:disconnected', () => {
