@@ -105,14 +105,14 @@
 
 /* Media toggle buttons */
 .hud-toggle-btn {
-  font-size: 12px;
+  font-size: 14px;
   margin-left: var(--space-xs);
   background: none;
   border: 1px solid transparent;
   border-radius: var(--radius-small);
-  padding: 2px 5px;
+  padding: 3px 6px;
   cursor: pointer;
-  opacity: 0.35;
+  opacity: 0.5;
   transition: all var(--duration-normal) var(--ease-smooth);
   user-select: none;
   pointer-events: all;
@@ -121,13 +121,13 @@
 }
 
 .hud-toggle-btn:hover {
-  opacity: 0.9;
+  opacity: 1;
   border-color: rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.1);
 }
 
 .hud-toggle-btn[data-active="on"] {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .hud-toggle-btn[data-active="off"]::after {
