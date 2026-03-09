@@ -72,13 +72,19 @@ export class FaceTracker {
     this.landmarker = null;
   }
 
+  private frameCount = 0;
+
   private tick = (): void => {
     if (!this.running || !this.landmarker) return;
 
-    const video = this.webcam.element;
-    if (video.readyState >= 2) {
-      const result = this.landmarker.detectForVideo(video, performance.now());
-      this.processResult(result);
+    // Only run detection every 3rd frame to reduce GPU load
+    this.frameCount++;
+    if (this.frameCount % 3 === 0) {
+      const video = this.webcam.element;
+      if (video.readyState >= 2) {
+        const result = this.landmarker.detectForVideo(video, performance.now());
+        this.processResult(result);
+      }
     }
 
     this.rafId = requestAnimationFrame(this.tick);

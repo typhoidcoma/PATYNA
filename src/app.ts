@@ -384,7 +384,7 @@ export class App {
     try {
       const combined = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+        video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
       });
 
       // Split into audio-only and video-only streams
