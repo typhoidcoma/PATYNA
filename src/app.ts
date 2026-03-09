@@ -145,8 +145,10 @@ export class App {
       this.fetchDashboardData();
       this.startDashboardRefresh();
 
-      // Auto-start camera after connection is established
-      eventBus.emit('media:cameraToggle', { enabled: true });
+      // Auto-start camera after overlay fades (getUserMedia prompt blocks UI)
+      setTimeout(() => {
+        eventBus.emit('media:cameraToggle', { enabled: true });
+      }, 800);
     });
 
     eventBus.on('comm:disconnected', () => {
