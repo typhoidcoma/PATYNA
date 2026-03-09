@@ -27,7 +27,7 @@ export class ElevenLabsTTS {
   private textBuffer = '';
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingDone = false;
-  private muted = false;
+  private muted = true;
 
   // Buffer text for ~200ms before sending to get better prosody
   private readonly FLUSH_DELAY_MS = 200;
@@ -108,8 +108,14 @@ export class ElevenLabsTTS {
 
       this.ws.onclose = (ev) => {
         console.log(`[ElevenLabs] WS closed (code=${ev.code}, reason=${ev.reason})`);
+        // Emit stream-done on unexpected close (normal isFinal path
+        // already emitted before calling close() which nullifies onclose)
+        const wasActive = this.state !== 'idle';
         this.state = 'idle';
         this.ws = null;
+        if (wasActive) {
+          eventBus.emit('audio:ttsStreamDone');
+        }
       };
     });
   }
@@ -148,7 +154,9 @@ export class ElevenLabsTTS {
         }
 
         if (msg.isFinal) {
-          // ElevenLabs signals stream is complete
+          // ElevenLabs signals all audio has been sent
+          console.log('[ElevenLabs] Stream complete (isFinal)');
+          eventBus.emit('audio:ttsStreamDone');
           this.close();
         }
       } catch (err) {

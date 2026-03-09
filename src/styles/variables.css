@@ -1,35 +1,81 @@
 :root {
-  /* Colors — Patyna Design System */
+  /* ── Brand + Hero (from colors_doc_v1) ── */
+  --color-hot-pink: #f94d8a;
+  --color-deep-pink: #d62f5f;
+  --color-rose-pink: #da4d6b;
+  --color-blush-rose: #cf868e;
+  --color-lime-zebra: #c1c34d;
+  --color-soft-peach: #fedbb0;
+  --color-warm-skin: #cca48f;
+
+  /* ── Legacy aliases (referenced widely — mapped to new palette) ── */
   --color-graphite: #1C1D21;
-  --color-stone: #E7E7E4;
-  --color-white: #FFFFFF;
-  --color-oxide-blue: #1C8E77;
+  --color-stone: #3b2b1c;
+  --color-white: #f8f9fa;
+  --color-oxide-blue: #f94d8a;
+  --color-border: rgba(118, 116, 127, 0.18);
 
-  /* Borders — subtle on dark backgrounds */
-  --color-border: rgba(255, 255, 255, 0.08);
+  /* ── Backgrounds ── */
+  --bg-app: linear-gradient(135deg, #b5f3ec 0%, #cde6e7 28%, #e0bed3 65%, #fedbb0 100%);
+  --bg-surface: rgba(255, 255, 255, 0.28);
+  --bg-surface-strong: rgba(244, 236, 230, 0.88);
+  --bg-surface-tint: rgba(224, 190, 211, 0.45);
 
-  /* Typography */
+  /* ── Text ── */
+  --text-primary: #3b2b1c;
+  --text-secondary: #615a50;
+  --text-tertiary: #76747f;
+  --text-inverse: #f8f9fa;
+  --text-accent: #d62f5f;
+
+  /* ── Accent ── */
+  --accent-primary: #f94d8a;
+  --accent-primary-hover: #d62f5f;
+  --accent-secondary: #c1c34d;
+  --accent-soft: #cf868e;
+  --accent-glow: rgba(249, 77, 138, 0.22);
+
+  /* ── Borders ── */
+  --border-soft: rgba(255, 255, 255, 0.45);
+  --border-muted: rgba(118, 116, 127, 0.18);
+  --border-accent: rgba(249, 77, 138, 0.28);
+
+  /* ── Shadows ── */
+  --shadow-card: 0 12px 30px rgba(59, 43, 28, 0.12);
+  --shadow-soft: 0 8px 20px rgba(118, 116, 127, 0.10);
+  --shadow-glow-pink: 0 0 24px rgba(249, 77, 138, 0.18);
+
+  /* ── Glass ── */
+  --glass-bg: rgba(255, 255, 255, 0.22);
+  --glass-bg-strong: rgba(255, 255, 255, 0.36);
+  --glass-blur: blur(20px);
+
+  /* ── Typography ── */
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --tracking-wide: 0.02em;
 
-  /* Radii */
-  --radius-panel: 12px;
-  --radius-button: 10px;
-  --radius-small: 6px;
+  /* ── Radii (soft, pill-heavy) ── */
+  --radius-sm: 14px;
+  --radius-md: 22px;
+  --radius-lg: 30px;
+  --radius-pill: 999px;
+  --radius-panel: 22px;
+  --radius-button: 14px;
+  --radius-small: 10px;
 
-  /* Transitions — "smooth, slow, organic" motion language */
+  /* ── Transitions ── */
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
   --duration-fast: 150ms;
   --duration-normal: 300ms;
   --duration-slow: 600ms;
 
-  /* Spacing */
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 16px;
-  --space-lg: 24px;
-  --space-xl: 40px;
+  /* ── Spacing ── */
+  --space-xs: 6px;
+  --space-sm: 12px;
+  --space-md: 20px;
+  --space-lg: 28px;
+  --space-xl: 48px;
 }

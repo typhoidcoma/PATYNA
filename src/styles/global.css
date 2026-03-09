@@ -4,8 +4,8 @@
 body {
   font-family: var(--font-family);
   font-weight: var(--font-weight-regular);
-  background-color: var(--color-graphite);
-  color: var(--color-stone);
+  background: var(--bg-app);
+  color: var(--text-primary);
   letter-spacing: var(--tracking-wide);
 }
 
@@ -13,10 +13,20 @@ body {
   width: 100%;
   height: 100vh;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   overflow: hidden;
 }
 
 canvas {
   display: block;
+}
+
+/* Left column: 3D scene + chat panel */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }

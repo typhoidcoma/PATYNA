@@ -6,6 +6,8 @@
   position: relative;
   overflow: hidden;
   min-height: 0;
+  border-radius: var(--radius-lg);
+  margin: var(--space-md);
 }
 
 /* ════════════════════════════════════════════
@@ -28,11 +30,11 @@
 
 .hud-wordmark {
   font-family: var(--font-family);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-semibold);
   font-size: 15px;
-  color: var(--color-stone);
+  color: var(--text-inverse);
   letter-spacing: 0.06em;
-  opacity: 0.6;
+  opacity: 0.7;
   user-select: none;
 }
 
@@ -47,7 +49,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--color-stone);
+  background: var(--text-inverse);
   opacity: 0.3;
   transition: all var(--duration-normal) var(--ease-smooth);
 }
@@ -57,26 +59,26 @@
 }
 
 .hud-status-dot[data-state="listening"] {
-  background: var(--color-oxide-blue);
+  background: var(--accent-primary);
   opacity: 1;
   animation: pulse 1.5s ease-in-out infinite;
 }
 
 .hud-status-dot[data-state="thinking"] {
-  background: var(--color-oxide-blue);
+  background: var(--accent-primary);
   opacity: 0.6;
   animation: pulse 0.8s ease-in-out infinite;
 }
 
 .hud-status-dot[data-state="speaking"] {
-  background: var(--color-oxide-blue);
+  background: var(--accent-primary);
   opacity: 1;
 }
 
 .hud-status-label {
   font-size: 12px;
-  color: var(--color-stone);
-  opacity: 0.4;
+  color: var(--text-inverse);
+  opacity: 0.5;
   font-weight: var(--font-weight-medium);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -87,7 +89,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #666;
+  background: rgba(255, 255, 255, 0.3);
   margin-left: var(--space-sm);
   transition: background var(--duration-normal) var(--ease-smooth);
   flex-shrink: 0;
@@ -98,10 +100,10 @@
 }
 
 .hud-conn[data-conn="disconnected"] {
-  background: #666;
+  background: rgba(255, 255, 255, 0.3);
 }
 
-/* Media toggle buttons (mic/camera) */
+/* Media toggle buttons */
 .hud-toggle-btn {
   font-size: 12px;
   margin-left: var(--space-xs);
@@ -119,17 +121,17 @@
 }
 
 .hud-toggle-btn.visible {
-  opacity: 0.5;
+  opacity: 0.55;
 }
 
 .hud-toggle-btn.visible:hover {
-  opacity: 0.8;
-  border-color: var(--color-border);
-  background: rgba(255, 255, 255, 0.05);
+  opacity: 0.9;
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .hud-toggle-btn[data-active="on"] {
-  opacity: 0.7;
+  opacity: 0.75;
 }
 
 .hud-toggle-btn[data-active="off"]::after {
@@ -147,7 +149,7 @@
 /* Mood indicator */
 .hud-mood {
   font-size: 11px;
-  color: var(--color-stone);
+  color: var(--text-inverse);
   opacity: 0;
   margin-left: var(--space-sm);
   font-weight: var(--font-weight-medium);
@@ -158,7 +160,7 @@
 }
 
 .hud-mood.visible {
-  opacity: 0.45;
+  opacity: 0.5;
 }
 
 .hud-mood[data-emotion="joy"] { color: #FFD740; }
@@ -171,7 +173,7 @@
 .hud-mood[data-emotion="anticipation"] { color: #FFB74D; }
 
 .hud-mood.visible[data-emotion] {
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
 /* Error toast */
@@ -180,11 +182,14 @@
   top: 60px;
   left: 50%;
   transform: translateX(-50%) translateY(-10px);
-  background: rgba(200, 60, 60, 0.85);
-  color: var(--color-white);
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  color: var(--text-accent);
   font-size: 13px;
-  padding: 8px 16px;
-  border-radius: var(--radius-small);
+  padding: 10px 20px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-accent);
   pointer-events: none;
   opacity: 0;
   transition:
@@ -193,6 +198,7 @@
   max-width: 360px;
   text-align: center;
   z-index: 20;
+  box-shadow: var(--shadow-soft);
 }
 
 .hud-toast.show {
@@ -209,8 +215,9 @@
   justify-content: center;
   pointer-events: all;
   cursor: pointer;
-  background: rgba(28, 29, 33, 0.6);
-  backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   transition: opacity var(--duration-slow) var(--ease-smooth);
 }
 
@@ -221,20 +228,55 @@
 
 .hud-start-text {
   font-size: 14px;
-  color: var(--color-stone);
-  opacity: 0.5;
+  color: var(--text-secondary);
+  opacity: 0.8;
   font-weight: var(--font-weight-medium);
   letter-spacing: 0.04em;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-soft);
   padding: var(--space-md) var(--space-lg);
-  border-radius: var(--radius-button);
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-soft);
   transition: all var(--duration-normal) var(--ease-smooth);
 }
 
 .hud-start:hover .hud-start-text {
-  opacity: 0.8;
-  border-color: var(--color-oxide-blue);
-  color: var(--color-white);
+  opacity: 1;
+  border-color: var(--border-accent);
+  color: var(--text-accent);
+  box-shadow: var(--shadow-glow-pink);
+}
+
+/* Post-click loading state */
+.hud-start.loading {
+  cursor: default;
+}
+
+.hud-start.loading .hud-start-text {
+  border-color: var(--border-soft);
+  opacity: 0.7;
+  color: var(--text-tertiary);
+}
+
+.hud-start-spinner {
+  display: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(249, 77, 138, 0.15);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 8px;
+}
+
+.hud-start.loading .hud-start-spinner {
+  display: block;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 @keyframes pulse {
@@ -250,16 +292,14 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-sm) var(--space-lg);
-  background: var(--color-graphite);
-  border-top: 1px solid var(--color-border);
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
 }
 
 /* User speech text (brief, fades) */
 .hud-user-text {
   font-size: 12px;
-  color: var(--color-stone);
+  color: var(--text-secondary);
   opacity: 0;
   max-width: 500px;
   text-align: center;
@@ -269,68 +309,73 @@
 }
 
 .hud-user-text.visible {
-  opacity: 0.5;
+  opacity: 0.6;
   min-height: 1.2em;
 }
 
-/* Text input — always visible */
+/* Text input — glass pill style */
 .hud-input-row {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
   width: 100%;
-  max-width: 420px;
+  max-width: 480px;
 }
 
 .hud-input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-button);
-  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-pill);
+  padding: 12px 20px;
   font-family: var(--font-family);
-  font-size: 13px;
-  color: var(--color-stone);
+  font-size: 14px;
+  color: var(--text-primary);
   outline: none;
-  transition: border-color var(--duration-fast) var(--ease-smooth);
+  box-shadow: var(--shadow-soft);
+  transition: all var(--duration-fast) var(--ease-smooth);
 }
 
 .hud-input::placeholder {
-  color: var(--color-stone);
-  opacity: 0.3;
+  color: var(--text-tertiary);
+  opacity: 0.7;
 }
 
 .hud-input:focus {
-  border-color: var(--color-oxide-blue);
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-glow-pink);
 }
 
 .hud-send {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-small);
-  border: 1px solid var(--color-border);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--color-stone);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  border: none;
+  background: linear-gradient(180deg, var(--accent-primary) 0%, var(--accent-primary-hover) 100%);
+  color: var(--text-inverse);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all var(--duration-fast) var(--ease-smooth);
   font-size: 14px;
+  box-shadow: var(--shadow-glow-pink);
 }
 
 .hud-send:hover {
-  border-color: var(--color-oxide-blue);
-  background: rgba(28, 142, 119, 0.15);
+  background: linear-gradient(180deg, #ff6198 0%, var(--color-rose-pink) 100%);
 }
 
 .hud-send:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
-/* AI response area — fixed height container, never shifts layout */
+/* AI response area — fixed height container */
 .hud-response-area {
   display: flex;
   justify-content: center;
@@ -340,8 +385,8 @@
 }
 
 .hud-response {
-  font-size: 11px;
-  color: var(--color-stone);
+  font-size: 12px;
+  color: var(--text-secondary);
   opacity: 0;
   text-align: center;
   line-height: 1.4;
@@ -352,5 +397,5 @@
 }
 
 .hud-response-area.visible .hud-response {
-  opacity: 0.4;
+  opacity: 0.65;
 }

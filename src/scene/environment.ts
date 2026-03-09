@@ -33,8 +33,8 @@ export function createEnvironment(scene: THREE.Scene): THREE.Mesh {
     depthWrite: false,
     uniforms: {
       uTime: { value: 0 },
-      uTeal: { value: new THREE.Color('#1C8E77') },
-      uGlow: { value: new THREE.Color('#63E6C7') },
+      uTeal: { value: new THREE.Color('#7ECDC0') },
+      uGlow: { value: new THREE.Color('#D4A5C8') },
       uSparkleColor: { value: DEFAULT_SPARKLE.clone() },
     },
     vertexShader: /* glsl */ `
@@ -63,9 +63,9 @@ export function createEnvironment(scene: THREE.Scene): THREE.Mesh {
         // ── Vignette: subtle darkening at edges ──
         float vignette = 1.0 - smoothstep(0.20, 0.65, dist) * 0.55;
 
-        // ── Radial gradient: layered teal glow ──
-        float innerGlow = exp(-dist * dist * 5.0) * 0.18;     // tight center
-        float outerGlow = exp(-dist * dist * 2.0) * 0.06;     // wide soft halo
+        // ── Radial gradient: layered glow ──
+        float innerGlow = exp(-dist * dist * 5.0) * 0.28;     // tight center
+        float outerGlow = exp(-dist * dist * 2.0) * 0.10;     // wide soft halo
         float glow = innerGlow + outerGlow;
         vec3 glowColor = uGlow * glow;
 
@@ -81,7 +81,7 @@ export function createEnvironment(scene: THREE.Scene): THREE.Mesh {
         float line = 1.0 - contour;
 
         float contourFade = smoothstep(0.65, 0.1, dist);
-        vec3 contourColor = uTeal * line * 0.07 * contourFade;
+        vec3 contourColor = uTeal * line * 0.12 * contourFade;
 
         // ── Sparkle particles (bright mint dots) ──
         float sparkle = 0.0;

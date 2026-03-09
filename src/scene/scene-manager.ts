@@ -29,9 +29,21 @@ export class SceneManager {
     this.renderer.toneMappingExposure = 1.5;
     container.appendChild(this.renderer.domElement);
 
-    // Scene — rich dark background to complement teal glow
+    // Scene — gradient background (dark teal → purple → rose, mirrors pastel UI)
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#0E1014');
+    const bgCanvas = document.createElement('canvas');
+    bgCanvas.width = 2;
+    bgCanvas.height = 512;
+    const bgCtx = bgCanvas.getContext('2d')!;
+    const grad = bgCtx.createLinearGradient(0, 0, 0, 512);
+    grad.addColorStop(0, '#1a2a2e');   // dark teal (top)
+    grad.addColorStop(0.45, '#2a2438'); // deep purple (center)
+    grad.addColorStop(1, '#35232e');   // dark rose (bottom)
+    bgCtx.fillStyle = grad;
+    bgCtx.fillRect(0, 0, 2, 512);
+    const bgTex = new THREE.CanvasTexture(bgCanvas);
+    bgTex.colorSpace = THREE.SRGBColorSpace;
+    this.scene.background = bgTex;
 
     // Camera
     const aspect = container.clientWidth / container.clientHeight;

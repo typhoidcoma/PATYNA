@@ -15,6 +15,7 @@ import { FaceTracker } from '@/tracking/face-tracker.ts';
 import { PresenceManager } from '@/tracking/presence-manager.ts';
 import { AeloraClient } from '@/api/aelora-client.ts';
 import { HUD } from '@/ui/hud.ts';
+import { Sidebar } from '@/ui/sidebar.ts';
 import { DEFAULT_CONFIG, type PatynaConfig } from '@/types/config.ts';
 
 export class App {
@@ -32,12 +33,15 @@ export class App {
   private presenceManager: PresenceManager;
   private aeloraClient: AeloraClient;
   private hud: HUD;
+  private sidebar: Sidebar;
   private config: PatynaConfig;
   private envMesh: THREE.Mesh | null = null;
+  private dashboardTimer = 0;
 
   // Speaking-state completion tracking
   private textStreamDone = false;
   private audioPlaying = false;
+  private ttsStreamOpen = false;
 
   constructor(
     container: HTMLElement,
@@ -72,10 +76,14 @@ export class App {
       username: config.websocket.username,
     });
 
-    // ── Layout: scene wrapper (flex:1) + panel below ──
+    // ── Layout: main-content row (scene + sidebar) + panel below ──
+    const mainContent = document.createElement('div');
+    mainContent.className = 'main-content';
+    container.appendChild(mainContent);
+
     const sceneWrap = document.createElement('div');
     sceneWrap.className = 'scene-wrap';
-    container.appendChild(sceneWrap);
+    mainContent.appendChild(sceneWrap);
 
     // 3D Scene — renders into the scene wrapper so it never overlaps the panel
     this.sceneManager = new SceneManager(sceneWrap, config);
@@ -98,8 +106,11 @@ export class App {
     // Avatar gaze controller
     this.avatarController = new AvatarController(this.avatar, config);
 
-    // HUD — overlay goes into sceneWrap, panel goes into container
-    this.hud = new HUD(sceneWrap, container);
+    // HUD — overlay goes into sceneWrap, panel goes into mainContent (under scene)
+    this.hud = new HUD(sceneWrap, mainContent);
+
+    // Sidebar — appended to root container so it spans full height
+    this.sidebar = new Sidebar(container);
 
     // Register frame updates
     this.sceneManager.onFrame((delta, elapsed) => {
@@ -127,6 +138,8 @@ export class App {
       if (this.config.api.fetchMemoryOnConnect) {
         this.fetchInitialMemory();
       }
+      this.fetchDashboardData();
+      this.startDashboardRefresh();
     });
 
     eventBus.on('comm:disconnected', () => {
@@ -160,6 +173,7 @@ export class App {
 
     eventBus.on('audio:playbackStart', () => {
       this.audioPlaying = true;
+      this.ttsStreamOpen = true;
       // Transition to speaking when voice actually starts
       const s = this.stateMachine.state;
       if (s === 'thinking' || s === 'idle') {
@@ -170,6 +184,12 @@ export class App {
     // Audio playback finished — go idle if text is also done
     eventBus.on('audio:playbackEnd', () => {
       this.audioPlaying = false;
+      this.tryFinishResponse();
+    });
+
+    // ElevenLabs finished sending all audio for this response
+    eventBus.on('audio:ttsStreamDone', () => {
+      this.ttsStreamOpen = false;
       this.tryFinishResponse();
     });
 
@@ -268,12 +288,15 @@ export class App {
   }
 
   /**
-   * Transition back to idle when BOTH text stream and audio playback
-   * are complete. Handles speaking→idle and thinking→idle (text-only).
+   * Transition back to idle when ALL three conditions are met:
+   * 1. Text stream from LLM is complete
+   * 2. Audio worklet buffer is empty (not playing)
+   * 3. ElevenLabs TTS stream is closed (all audio received)
    */
   private tryFinishResponse(): void {
     if (!this.textStreamDone) return;          // Still streaming text
     if (this.audioPlaying) return;             // Still playing audio
+    if (this.ttsStreamOpen) return;            // ElevenLabs still sending audio
     const s = this.stateMachine.state;
     if (s === 'speaking' || s === 'thinking') {
       this.stateMachine.transition('idle');
@@ -284,6 +307,7 @@ export class App {
   private resetSpeakingState(): void {
     this.textStreamDone = false;
     this.audioPlaying = false;
+    this.ttsStreamOpen = false;
   }
 
   /** Fetch user profile and session data from Aelora REST API (non-blocking). */
@@ -313,6 +337,35 @@ export class App {
     );
 
     await Promise.allSettled(promises);
+  }
+
+  /** Fetch dashboard data (calendar, tasks, linear) from Aelora REST API. */
+  private async fetchDashboardData(): Promise<void> {
+    const [events, todos, issues] = await Promise.allSettled([
+      this.aeloraClient.getCalendarEvents(7),
+      this.aeloraClient.getTodos(),
+      this.aeloraClient.getLinearIssues(),
+    ]);
+
+    const calEvents = (events.status === 'fulfilled' && events.value) ? events.value : [];
+    console.log(`[Patyna] Calendar: ${calEvents.length} events`);
+    eventBus.emit('api:calendarEvents', { events: calEvents });
+
+    const todoItems = (todos.status === 'fulfilled' && todos.value) ? todos.value : [];
+    console.log(`[Patyna] Tasks: ${todoItems.length} items`);
+    eventBus.emit('api:todos', { todos: todoItems });
+
+    const linearItems = (issues.status === 'fulfilled' && issues.value) ? issues.value : [];
+    console.log(`[Patyna] Linear: ${linearItems.length} issues`);
+    eventBus.emit('api:linearIssues', { issues: linearItems });
+  }
+
+  /** Refresh dashboard data every 5 minutes. */
+  private startDashboardRefresh(): void {
+    if (this.dashboardTimer) clearInterval(this.dashboardTimer);
+    this.dashboardTimer = window.setInterval(() => {
+      this.fetchDashboardData();
+    }, 5 * 60 * 1000);
   }
 
   private async onReady(): Promise<void> {
@@ -386,6 +439,7 @@ export class App {
 
   /** Tear down all resources. */
   async destroy(): Promise<void> {
+    if (this.dashboardTimer) clearInterval(this.dashboardTimer);
     this.presenceManager.destroy();
     this.faceTracker.destroy();
     this.webcam.destroy();
@@ -394,6 +448,7 @@ export class App {
     this.ttsPlayer.destroy();
     this.audioManager.close();
     this.comm.disconnect();
+    this.sidebar.destroy();
     this.hud.destroy();
     console.log('[Patyna] Destroyed');
   }

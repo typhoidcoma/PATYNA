@@ -1,6 +1,12 @@
 import type { AppState, PresenceState } from './config.ts';
 import type { MoodData } from './messages.ts';
-import type { UserProfile, SessionDetail } from '@/api/aelora-client.ts';
+import type {
+  UserProfile,
+  SessionDetail,
+  CalendarEvent,
+  TodoItem,
+  LinearIssue,
+} from '@/api/aelora-client.ts';
 
 export interface EventMap {
   // State changes
@@ -22,6 +28,7 @@ export interface EventMap {
   'audio:chunkReceived': { data: Float32Array };
   'audio:playbackStart': void;
   'audio:playbackEnd': void;
+  'audio:ttsStreamDone': void;
   'audio:amplitude': { value: number };
 
   // Media permissions & toggles
@@ -42,4 +49,10 @@ export interface EventMap {
   // API (Aelora REST)
   'api:userProfile': { profile: UserProfile };
   'api:sessionDetail': { session: SessionDetail };
+  'api:calendarEvents': { events: CalendarEvent[] };
+  'api:todos': { todos: TodoItem[] };
+  'api:linearIssues': { issues: LinearIssue[] };
+
+  // Sidebar
+  'sidebar:toggle': void;
 }

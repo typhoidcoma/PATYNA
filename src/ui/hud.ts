@@ -17,9 +17,10 @@ export class HUD {
   private micBtn: HTMLButtonElement;
   private camBtn: HTMLButtonElement;
   private ttsBtn: HTMLButtonElement;
+  private dashBtn: HTMLButtonElement;
   private micEnabled = false;
   private camEnabled = false;
-  private ttsEnabled = true;
+  private ttsEnabled = false;
   private moodLabel: HTMLSpanElement;
   private responseArea: HTMLDivElement;
   private responseText: HTMLDivElement;
@@ -80,14 +81,21 @@ export class HUD {
     this.ttsBtn = document.createElement('button');
     this.ttsBtn.className = 'hud-toggle-btn visible';
     this.ttsBtn.dataset.kind = 'tts';
-    this.ttsBtn.dataset.active = 'on';
+    this.ttsBtn.dataset.active = 'off';
     this.ttsBtn.textContent = '\u{1F50A}';
     this.ttsBtn.title = 'Toggle voice (ElevenLabs TTS)';
+
+    this.dashBtn = document.createElement('button');
+    this.dashBtn.className = 'hud-toggle-btn visible';
+    this.dashBtn.dataset.kind = 'dash';
+    this.dashBtn.dataset.active = 'on';
+    this.dashBtn.textContent = '\u2630';
+    this.dashBtn.title = 'Toggle dashboard sidebar';
 
     this.moodLabel = document.createElement('span');
     this.moodLabel.className = 'hud-mood';
 
-    leftGroup.append(wordmark, this.connDot, this.micBtn, this.camBtn, this.ttsBtn, this.moodLabel);
+    leftGroup.append(wordmark, this.connDot, this.micBtn, this.camBtn, this.ttsBtn, this.dashBtn, this.moodLabel);
 
     const status = document.createElement('div');
     status.className = 'hud-status';
@@ -110,10 +118,12 @@ export class HUD {
     // ── Start overlay ──
     this.startOverlay = document.createElement('div');
     this.startOverlay.className = 'hud-start';
+    const startSpinner = document.createElement('div');
+    startSpinner.className = 'hud-start-spinner';
     const startText = document.createElement('span');
     startText.className = 'hud-start-text';
     startText.textContent = 'Click to begin';
-    this.startOverlay.append(startText);
+    this.startOverlay.append(startSpinner, startText);
 
     this.overlay.append(top, this.toast, this.startOverlay);
     sceneWrap.appendChild(this.overlay);
@@ -159,9 +169,16 @@ export class HUD {
     // ── Ready promise ──
     this.ready = new Promise((resolve) => {
       this.startOverlay.addEventListener('click', () => {
-        this.startOverlay.classList.add('hidden');
+        // Show loading state while initializing media + connection
+        this.startOverlay.classList.add('loading');
+        startText.textContent = 'Initializing\u2026';
         resolve();
       }, { once: true });
+    });
+
+    // Hide start overlay once backend is connected
+    eventBus.on('comm:ready', () => {
+      this.startOverlay.classList.add('hidden');
     });
 
     // ── Toggle button handlers ──
@@ -179,6 +196,11 @@ export class HUD {
       this.ttsEnabled = !this.ttsEnabled;
       this.ttsBtn.dataset.active = this.ttsEnabled ? 'on' : 'off';
       eventBus.emit('media:ttsToggle', { enabled: this.ttsEnabled });
+    });
+    this.dashBtn.addEventListener('click', () => {
+      const isOn = this.dashBtn.dataset.active === 'on';
+      this.dashBtn.dataset.active = isOn ? 'off' : 'on';
+      eventBus.emit('sidebar:toggle');
     });
 
     // ── Text input handlers ──

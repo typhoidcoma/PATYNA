@@ -58,6 +58,58 @@ export interface NoteData {
   updatedAt: string;
 }
 
+// ── Dashboard types ──
+
+export interface CalendarEvent {
+  uid: string;
+  summary: string;
+  description?: string;
+  location?: string;
+  dtstart: string;
+  dtend: string;
+  url?: string;
+}
+
+interface CalendarResponse {
+  events: CalendarEvent[];
+  count: number;
+  daysAhead: number;
+  maxResults: number;
+}
+
+interface TodoResponse {
+  todos: TodoItem[];
+  count: number;
+}
+
+interface LinearResponse {
+  issues: LinearIssue[];
+  count: number;
+}
+
+export interface TodoItem {
+  uid: string;
+  title: string;
+  description?: string;
+  completed: boolean;
+  priority: 'low' | 'medium' | 'high';
+  dueDate?: string;
+  url?: string;
+}
+
+export interface LinearIssue {
+  id: string;
+  identifier: string;
+  title: string;
+  description?: string;
+  priority: number;
+  status: string;
+  assignee?: { name: string; email: string };
+  url?: string;
+  dueDate?: string;
+  labels?: string[];
+}
+
 // ── Client ──
 
 export interface AeloraClientConfig {
@@ -143,6 +195,25 @@ export class AeloraClient {
   /** Get API status. */
   async getStatus(): Promise<Record<string, unknown> | null> {
     return this.get<Record<string, unknown>>('/api/status');
+  }
+
+  /** Get upcoming calendar events (unwraps {events: [...]}) */
+  async getCalendarEvents(days = 7): Promise<CalendarEvent[] | null> {
+    const resp = await this.get<CalendarResponse>(`/api/calendar/events?days=${days}`);
+    return resp?.events ?? null;
+  }
+
+  /** Get todos (Google Tasks, unwraps {todos: [...]}) */
+  async getTodos(status?: string): Promise<TodoItem[] | null> {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    const resp = await this.get<TodoResponse>(`/api/todos${qs}`);
+    return resp?.todos ?? null;
+  }
+
+  /** Get all Linear issues (bare array response). */
+  async getLinearIssues(status?: string): Promise<LinearIssue[] | null> {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.get<LinearIssue[]>(`/api/linear/issues${qs}`);
   }
 
   // ── Internal ──
