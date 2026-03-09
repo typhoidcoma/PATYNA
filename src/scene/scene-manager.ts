@@ -70,16 +70,18 @@ export class SceneManager {
     this.composer.addPass(bloom);
     this.composer.addPass(new OutputPass());
 
-    // Resize handling
+    // Resize handling — observe the container so sidebar toggle, etc. are caught
     const onResize = () => {
       const w = container.clientWidth;
       const h = container.clientHeight;
+      if (w === 0 || h === 0) return;
       this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(w, h);
       this.composer.setSize(w, h);
     };
     window.addEventListener('resize', onResize);
+    new ResizeObserver(onResize).observe(container);
 
     // Start render loop
     this.animate();
