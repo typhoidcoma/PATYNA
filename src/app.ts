@@ -43,6 +43,10 @@ export class App {
   private audioPlaying = false;
   private ttsStreamOpen = false;
 
+  // Lazy init flags for mic/camera
+  private micInitialized = false;
+  private cameraInitialized = false;
+
   constructor(
     container: HTMLElement,
     config: PatynaConfig = DEFAULT_CONFIG,
@@ -218,7 +222,7 @@ export class App {
 
     eventBus.on('media:micToggle', ({ enabled }) => {
       if (enabled) {
-        this.voiceManager.resume();
+        this.initMic();
       } else {
         this.voiceManager.pause();
       }
@@ -226,8 +230,7 @@ export class App {
 
     eventBus.on('media:cameraToggle', ({ enabled }) => {
       if (enabled) {
-        this.faceTracker.start();
-        this.presenceManager.resume();
+        this.initCamera();
       } else {
         this.faceTracker.stop();
         this.presenceManager.pause();
@@ -371,75 +374,55 @@ export class App {
   private async onReady(): Promise<void> {
     console.log('[Patyna] Session started');
 
-    // Initialize audio (must happen after user gesture)
-    eventBus.emit('init:progress', { pct: 10, label: 'Preparing audio\u2026' });
+    // Initialize audio output (must happen after user gesture)
+    eventBus.emit('init:progress', { pct: 20, label: 'Preparing audio\u2026' });
     await this.ttsPlayer.init();
 
-    // ── Single getUserMedia for both mic + camera ──
-    // One permission prompt instead of two, more reliable across browsers
-    eventBus.emit('init:progress', { pct: 25, label: 'Requesting permissions\u2026' });
-    let audioStream: MediaStream | undefined;
-    let videoStream: MediaStream | undefined;
+    // Connect to Aelora backend (mic/camera init lazily on toggle)
+    eventBus.emit('init:progress', { pct: 60, label: 'Connecting\u2026' });
+    this.comm.connect();
+  }
 
-    try {
-      const combined = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
-      });
-
-      // Split into audio-only and video-only streams
-      const audioTracks = combined.getAudioTracks();
-      const videoTracks = combined.getVideoTracks();
-
-      if (audioTracks.length > 0) {
-        audioStream = new MediaStream(audioTracks);
-        console.log('[Patyna] Mic access granted');
-      }
-      if (videoTracks.length > 0) {
-        videoStream = new MediaStream(videoTracks);
-        console.log('[Patyna] Camera access granted');
-      }
-    } catch (err) {
-      console.warn('[Patyna] Media access denied or unavailable:', err);
-
-      // Try audio-only fallback (camera might be blocked but mic allowed)
+  /** Lazy-init microphone + VAD on first mic toggle. */
+  private async initMic(): Promise<void> {
+    if (!this.micInitialized) {
       try {
-        const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true });
-        audioStream = audioOnly;
-        console.log('[Patyna] Mic access granted (camera denied)');
-      } catch {
-        console.warn('[Patyna] Mic also unavailable — text input only');
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log('[Patyna] Mic access granted');
+        await this.voiceManager.init(stream);
+        this.micInitialized = true;
+        eventBus.emit('media:status', { mic: true, camera: this.cameraInitialized });
+      } catch (err) {
+        console.warn('[Patyna] Mic unavailable:', err);
+        eventBus.emit('media:status', { mic: false, camera: this.cameraInitialized });
+        return;
       }
     }
+    this.voiceManager.resume();
+  }
 
-    // Emit media status so HUD can show indicators
-    eventBus.emit('media:status', {
-      mic: !!audioStream,
-      camera: !!videoStream,
-    });
-
-    // Initialize voice input (VAD + STT)
-    eventBus.emit('init:progress', { pct: 45, label: 'Loading voice model\u2026' });
-    await this.voiceManager.init(audioStream);
-
-    // Initialize face tracking with shared video stream
-    if (videoStream) {
+  /** Lazy-init camera + face tracking on first camera toggle. */
+  private async initCamera(): Promise<void> {
+    if (!this.cameraInitialized) {
       try {
-        eventBus.emit('init:progress', { pct: 65, label: 'Loading face tracking\u2026' });
-        const camOk = await this.webcam.startWithStream(videoStream);
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
+        });
+        console.log('[Patyna] Camera access granted');
+        const camOk = await this.webcam.startWithStream(stream);
         if (camOk) {
           await this.faceTracker.init();
-          this.faceTracker.start();
-          this.presenceManager.start();
+          this.cameraInitialized = true;
+          eventBus.emit('media:status', { mic: this.micInitialized, camera: true });
         }
       } catch (err) {
-        console.warn('[Patyna] Face tracking unavailable:', err);
+        console.warn('[Patyna] Camera unavailable:', err);
+        eventBus.emit('media:status', { mic: this.micInitialized, camera: false });
+        return;
       }
     }
-
-    // Connect to Aelora backend
-    eventBus.emit('init:progress', { pct: 80, label: 'Connecting\u2026' });
-    this.comm.connect();
+    this.faceTracker.start();
+    this.presenceManager.start();
   }
 
   /** Tear down all resources. */

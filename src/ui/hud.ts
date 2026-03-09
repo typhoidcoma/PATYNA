@@ -124,8 +124,6 @@ export class HUD {
     const startInner = document.createElement('div');
     startInner.className = 'hud-start-inner';
 
-    const startSpinner = document.createElement('div');
-    startSpinner.className = 'hud-start-spinner';
     const startText = document.createElement('span');
     startText.className = 'hud-start-text';
     startText.textContent = 'Click to begin';
@@ -139,7 +137,7 @@ export class HUD {
     this.progressLabel.className = 'hud-progress-label';
     progressWrap.appendChild(this.progressBar);
 
-    startInner.append(startSpinner, startText, progressWrap, this.progressLabel);
+    startInner.append(startText, progressWrap, this.progressLabel);
     this.startOverlay.appendChild(startInner);
 
     this.overlay.append(top, this.toast, this.startOverlay);
@@ -186,9 +184,8 @@ export class HUD {
     // ── Ready promise ──
     this.ready = new Promise((resolve) => {
       this.startOverlay.addEventListener('click', () => {
-        // Show loading state while initializing media + connection
         this.startOverlay.classList.add('loading');
-        startText.textContent = 'Initializing\u2026';
+        startText.style.display = 'none';
         resolve();
       }, { once: true });
     });
