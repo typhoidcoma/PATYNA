@@ -145,10 +145,8 @@ export class App {
       this.fetchDashboardData();
       this.startDashboardRefresh();
 
-      // Auto-start camera after overlay fades (getUserMedia prompt blocks UI)
-      setTimeout(() => {
-        eventBus.emit('media:cameraToggle', { enabled: true });
-      }, 800);
+      // Auto-start camera only if permission already granted (avoids prompt stalling UI)
+      this.tryAutoStartCamera();
     });
 
     eventBus.on('comm:disconnected', () => {
@@ -428,6 +426,22 @@ export class App {
     }
     this.faceTracker.start();
     this.presenceManager.start();
+  }
+
+  /** Auto-start camera if permission was previously granted (no prompt). */
+  private async tryAutoStartCamera(): Promise<void> {
+    try {
+      const status = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      if (status.state === 'granted') {
+        console.log('[Patyna] Camera permission already granted, auto-starting');
+        eventBus.emit('media:cameraToggle', { enabled: true });
+      } else {
+        console.log(`[Patyna] Camera permission: ${status.state}, skipping auto-start`);
+      }
+    } catch {
+      // permissions.query not supported for camera in this browser
+      console.log('[Patyna] Cannot query camera permission, skipping auto-start');
+    }
   }
 
   /** Tear down all resources. */
