@@ -54,14 +54,18 @@ export class WebSpeechSTT implements STTProvider {
     };
 
     this.recognition.onend = () => {
-      // Auto-restart if we're still supposed to be listening
-      // (Web Speech API stops after silence or network issues)
       if (this._listening) {
+        // Auto-restart — Web Speech API stops after silence or network issues
         try {
           this.recognition?.start();
         } catch {
           // Already started or stopped — ignore
         }
+      } else {
+        // Clean stop — clear references AFTER final onresult has fired
+        this.callback = null;
+        this.recognition = null;
+        console.log('[STT] WebSpeech stopped');
       }
     };
 
@@ -76,16 +80,21 @@ export class WebSpeechSTT implements STTProvider {
 
   stop(): void {
     this._listening = false;
-    this.callback = null;
 
     if (this.recognition) {
       try {
+        // Call stop() — the browser will fire one last onresult with
+        // the final transcript, THEN onend fires where we clean up.
+        // Critically, we keep this.callback alive so the final result
+        // isn't dropped.
         this.recognition.stop();
       } catch {
-        // Already stopped
+        // Already stopped — clean up immediately
+        this.callback = null;
+        this.recognition = null;
       }
-      this.recognition = null;
+    } else {
+      this.callback = null;
     }
-    console.log('[STT] WebSpeech stopped');
   }
 }
