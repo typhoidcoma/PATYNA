@@ -80,10 +80,13 @@ export class App {
       username: config.websocket.username,
     });
 
-    // ── Layout: main-content row (scene + sidebar) + panel below ──
+    // ── Layout: nav bar on top, then app-body row (scene + sidebar) ──
+    const appBody = document.createElement('div');
+    appBody.className = 'app-body';
+
     const mainContent = document.createElement('div');
     mainContent.className = 'main-content';
-    container.appendChild(mainContent);
+    appBody.appendChild(mainContent);
 
     const sceneWrap = document.createElement('div');
     sceneWrap.className = 'scene-wrap';
@@ -110,11 +113,14 @@ export class App {
     // Avatar gaze controller
     this.avatarController = new AvatarController(this.avatar, config);
 
-    // HUD — overlay goes into sceneWrap, panel goes into mainContent (under scene)
-    this.hud = new HUD(sceneWrap, mainContent);
+    // HUD — nav bar into container (#app), overlay into sceneWrap, panel into mainContent
+    this.hud = new HUD(sceneWrap, mainContent, container);
 
-    // Sidebar — appended to root container so it spans full height
-    this.sidebar = new Sidebar(container);
+    // Append app-body after HUD (so nav bar is first child of #app)
+    container.appendChild(appBody);
+
+    // Sidebar — inside app-body so scrim covers body area, not nav bar
+    this.sidebar = new Sidebar(appBody);
 
     // Register frame updates
     this.sceneManager.onFrame((delta, elapsed) => {

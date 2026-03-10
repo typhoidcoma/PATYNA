@@ -4,11 +4,13 @@ import type { MoodData } from '@/types/messages.ts';
 import './hud.css';
 
 /**
- * Heads-Up Display — split into two sections:
- *   1. Overlay (inside scene wrapper): top bar, toast, start prompt — never obscured by panel
- *   2. Panel (below scene wrapper): text input + AI response — separate from the 3D scene
+ * Heads-Up Display — split into three sections:
+ *   1. Nav bar (top of #app): logo, controls, hamburger
+ *   2. Overlay (inside scene wrapper): toast, start/login prompt
+ *   3. Panel (below scene wrapper): text input + AI response
  */
 export class HUD {
+  private nav: HTMLDivElement;
   private overlay: HTMLDivElement;
   private panel: HTMLDivElement;
   private statusDot: HTMLDivElement;
@@ -44,22 +46,19 @@ export class HUD {
 
   /**
    * @param sceneWrap — The scene wrapper div (overlay is positioned absolute inside this)
-   * @param container — The root #app container (panel is appended after sceneWrap)
+   * @param panelContainer — The container for the panel (appended after sceneWrap)
+   * @param navContainer — The root #app container (nav bar is prepended here)
    */
-  constructor(sceneWrap: HTMLElement, container: HTMLElement) {
+  constructor(sceneWrap: HTMLElement, panelContainer: HTMLElement, navContainer: HTMLElement) {
     // ════════════════════════════════════════════
-    // OVERLAY — positioned absolute over the 3D scene
+    // NAV BAR — full-width bar at the top of #app
     // ════════════════════════════════════════════
-    this.overlay = document.createElement('div');
-    this.overlay.className = 'hud-overlay';
+    this.nav = document.createElement('div');
+    this.nav.className = 'hud-nav';
 
-    // ── Top bar ──
-    const top = document.createElement('div');
-    top.className = 'hud-top';
-
-    const leftGroup = document.createElement('div');
-    leftGroup.style.display = 'flex';
-    leftGroup.style.alignItems = 'center';
+    // ── Left: logo + connection dot ──
+    const navLeft = document.createElement('div');
+    navLeft.className = 'hud-nav-left';
 
     const wordmark = document.createElement('span');
     wordmark.className = 'hud-wordmark';
@@ -68,6 +67,12 @@ export class HUD {
     this.connDot = document.createElement('div');
     this.connDot.className = 'hud-conn';
     this.connDot.dataset.conn = 'disconnected';
+
+    navLeft.append(wordmark, this.connDot);
+
+    // ── Center: media toggles + status + mood ──
+    const navCenter = document.createElement('div');
+    navCenter.className = 'hud-nav-center';
 
     this.micBtn = document.createElement('button');
     this.micBtn.className = 'hud-toggle-btn';
@@ -90,18 +95,6 @@ export class HUD {
     this.ttsBtn.textContent = '\u{1F50A}';
     this.ttsBtn.title = 'Toggle voice (ElevenLabs TTS)';
 
-    this.dashBtn = document.createElement('button');
-    this.dashBtn.className = 'hud-toggle-btn';
-    this.dashBtn.dataset.kind = 'dash';
-    this.dashBtn.dataset.active = 'off'; // sidebar emits initial state to sync this
-    this.dashBtn.textContent = '\u2630';
-    this.dashBtn.title = 'Toggle dashboard sidebar';
-
-    this.moodLabel = document.createElement('span');
-    this.moodLabel.className = 'hud-mood';
-
-    leftGroup.append(wordmark, this.connDot, this.micBtn, this.camBtn, this.ttsBtn, this.dashBtn, this.moodLabel);
-
     const status = document.createElement('div');
     status.className = 'hud-status';
 
@@ -114,7 +107,33 @@ export class HUD {
     this.statusLabel.textContent = 'idle';
 
     status.append(this.statusDot, this.statusLabel);
-    top.append(leftGroup, status);
+
+    this.moodLabel = document.createElement('span');
+    this.moodLabel.className = 'hud-mood';
+
+    navCenter.append(this.micBtn, this.camBtn, this.ttsBtn, status, this.moodLabel);
+
+    // ── Right: hamburger (sidebar toggle) ──
+    const navRight = document.createElement('div');
+    navRight.className = 'hud-nav-right';
+
+    this.dashBtn = document.createElement('button');
+    this.dashBtn.className = 'hud-toggle-btn';
+    this.dashBtn.dataset.kind = 'dash';
+    this.dashBtn.dataset.active = 'off'; // sidebar emits initial state to sync this
+    this.dashBtn.textContent = '\u2630';
+    this.dashBtn.title = 'Toggle dashboard sidebar';
+
+    navRight.append(this.dashBtn);
+
+    this.nav.append(navLeft, navCenter, navRight);
+    navContainer.appendChild(this.nav);
+
+    // ════════════════════════════════════════════
+    // OVERLAY — positioned absolute over the 3D scene
+    // ════════════════════════════════════════════
+    this.overlay = document.createElement('div');
+    this.overlay.className = 'hud-overlay';
 
     // ── Error toast ──
     this.toast = document.createElement('div');
@@ -160,7 +179,7 @@ export class HUD {
     startInner.append(loginForm, progressWrap, this.progressLabel);
     this.startOverlay.appendChild(startInner);
 
-    this.overlay.append(top, this.toast, this.startOverlay);
+    this.overlay.append(this.toast, this.startOverlay);
     sceneWrap.appendChild(this.overlay);
 
     // ════════════════════════════════════════════
@@ -199,7 +218,7 @@ export class HUD {
     this.responseArea.appendChild(this.responseText);
 
     this.panel.append(this.userText, this.inputRow, this.responseArea);
-    container.appendChild(this.panel);
+    panelContainer.appendChild(this.panel);
 
     // ── Ready promise (login gate) ──
     this.ready = new Promise((resolve) => {
@@ -409,6 +428,7 @@ export class HUD {
   }
 
   destroy(): void {
+    this.nav.remove();
     this.overlay.remove();
     this.panel.remove();
   }
