@@ -55,12 +55,26 @@ export class Avatar {
   private antennaTipMat: THREE.MeshBasicMaterial;
   private mouthMat!: THREE.MeshBasicMaterial;
 
-  // State
+  // State — per-state blends for smooth crossfade (no hard resets)
   private currentState: AppState = 'idle';
-  private stateBlend = 0;
+  private stateBlends: Record<AppState, number> = { idle: 1, listening: 0, thinking: 0, speaking: 0 };
   private audioAmplitude = 0;
   private targetAmplitude = 0;
-  private smoothIdleMix = 1.0;
+
+  // Smoothed core pulse parameters (lerp toward active state's targets)
+  private smoothCore = {
+    speed: 1.0, bodyMin: 0.12, bodyMax: 0.20,
+    coreMin: 0.3, coreMax: 0.6, glowMin: 0.06, glowMax: 0.15,
+  };
+
+  // Phase accumulators — prevents discontinuities when mood speed multipliers change
+  private bobPhase = 0;
+  private swayPhase = 0;
+  private corePulsePhase = 0;
+  private wingPhase1 = 0;
+  private wingPhase2 = 0;
+  private antPhaseZ = 0;
+  private antPhaseX = 0;
 
   // Presence — global multiplier on all animation/glow
   private presenceBlend = 1.0;
@@ -135,10 +149,9 @@ export class Avatar {
     this.headGroup.add(this.bodyAnimGroup);
     this.group.add(this.headGroup);
 
-    // Listen for state changes
+    // Listen for state changes — blends drive themselves each frame (no hard reset)
     eventBus.on('state:change', ({ to }) => {
       this.currentState = to;
-      this.stateBlend = 0;
     });
 
     // Listen for presence changes — drive visual dimming
@@ -559,9 +572,15 @@ export class Avatar {
 
   /** Per-frame update — idle animation + state-driven reactions */
   update(_delta: number, elapsed: number): void {
-    // Ease state blend toward 1 (faster for speaking so it kicks in immediately)
-    const blendSpeed = this.currentState === 'speaking' ? 5.0 : 3.0;
-    this.stateBlend = Math.min(1, this.stateBlend + _delta * blendSpeed);
+    // ── Per-state blend advancement (exponential easing) ──
+    // Each state has its own blend: active state ramps to 1, others decay to 0.
+    // This gives smooth crossfades — no hard resets, no single-frame jumps.
+    for (const state of ['idle', 'listening', 'thinking', 'speaking'] as AppState[]) {
+      const target = state === this.currentState ? 1.0 : 0.0;
+      const speed = target > this.stateBlends[state] ? 4.0 : 3.0;
+      this.stateBlends[state] += (target - this.stateBlends[state]) * (1 - Math.exp(-speed * _delta));
+      if (Math.abs(this.stateBlends[state] - target) < 0.001) this.stateBlends[state] = target;
+    }
 
     // ── Frame-rate independent amplitude smoothing ──
     // Asymmetric: fast attack (~60ms) so speech is responsive,
@@ -576,9 +595,8 @@ export class Avatar {
     this.presenceBlend += (this.targetPresenceBlend - this.presenceBlend) * (1 - Math.exp(-presenceSpeed * _delta));
     const pB = this.presenceBlend; // shorthand
 
-    // ── Smooth idleMix transition (avoids jarring snap on state change) ──
-    const targetIdleMix = this.currentState === 'speaking' ? 0.15 : 1.0;
-    this.smoothIdleMix += (targetIdleMix - this.smoothIdleMix) * (1 - Math.exp(-5 * _delta));
+    // ── Idle animation mix: smoothly derived from speaking blend ──
+    const idleMix = 1.0 - this.stateBlends.speaking * 0.85;
 
     // ── Resolve mood animation profile (smooth transition) ──
     const mood = this.moodAnimState.resolve(_delta);
@@ -590,17 +608,19 @@ export class Avatar {
     this.rightEyeGroup.position.y = this.eyeBaseY;
     this.mouth.scale.set(1, 1, 1);
 
-    // ── Core pulse (always active, speed varies by state) ──
-    this.updateCorePulse(elapsed, pB, mood);
+    // ── Core pulse (smoothed params — no hard switch on state change) ──
+    this.updateCorePulse(elapsed, pB, mood, _delta);
 
-    // ── Hover bob (~3.5s cycle) — scaled by presence + mood ──
-    const bobT = Math.sin(elapsed * 0.285 * mood.bobSpeedMult * Math.PI * 2);
-    this.bodyAnimGroup.position.y = bobT * 0.015 * mood.bobAmplitudeMult * this.smoothIdleMix * pB
+    // ── Hover bob (~3.5s cycle) — phase-accumulated for glitch-free speed changes ──
+    this.bobPhase += _delta * 0.285 * mood.bobSpeedMult * Math.PI * 2;
+    const bobT = Math.sin(this.bobPhase);
+    this.bodyAnimGroup.position.y = bobT * 0.015 * mood.bobAmplitudeMult * idleMix * pB
       + mood.verticalOffset * pB;
 
-    // ── Micro-rotation sway — scaled by mood ──
-    this.bodyAnimGroup.rotation.z = Math.sin(elapsed * 0.9 * mood.swaySpeedMult)
-      * 0.012 * mood.swayAmplitudeMult * this.smoothIdleMix * pB;
+    // ── Micro-rotation sway — phase-accumulated ──
+    this.swayPhase += _delta * 0.9 * mood.swaySpeedMult;
+    this.bodyAnimGroup.rotation.z = Math.sin(this.swayPhase)
+      * 0.012 * mood.swayAmplitudeMult * idleMix * pB;
 
     // ── Mood: body tilt offset ──
     this.bodyAnimGroup.rotation.x += mood.bodyTiltXOffset * pB;
@@ -612,7 +632,7 @@ export class Avatar {
     }
 
     // ── Wing shimmer (continuous) — scaled by presence + mood ──
-    this.updateWingShimmer(elapsed, this.smoothIdleMix * pB, _delta, mood);
+    this.updateWingShimmer(elapsed, idleMix * pB, _delta, mood);
 
     // ── Blink / eyes closing when gone — scaled by mood ──
     this.updateBlink(elapsed, pB, mood);
@@ -621,61 +641,43 @@ export class Avatar {
     this.updateEyes(elapsed, pB, mood);
 
     // ── Antenna sway — scaled by presence + mood ──
-    this.updateAntennae(elapsed, pB, mood);
+    this.updateAntennae(elapsed, _delta, pB, mood);
 
-    // ── State-specific reactions ──
-    switch (this.currentState) {
-      case 'listening':
-        this.updateListening(elapsed);
-        break;
-      case 'thinking':
-        this.updateThinking(elapsed);
-        break;
-      case 'speaking':
-        this.updateSpeaking(elapsed);
-        break;
-    }
+    // ── State overlays: crossfade via per-state blends ──
+    // Multiple states can overlap during transitions for seamless flow
+    const listenB = this.stateBlends.listening;
+    const thinkB = this.stateBlends.thinking;
+    const speakB = this.stateBlends.speaking;
+
+    if (listenB > 0.001) this.updateListening(elapsed, listenB);
+    if (thinkB > 0.001) this.updateThinking(elapsed, thinkB);
+    if (speakB > 0.001) this.updateSpeaking(elapsed, speakB);
   }
 
-  /** Soft body + core glow pulse — the whole body breathes light */
-  private updateCorePulse(elapsed: number, pB: number = 1, mood: MoodAnimProfile = NEUTRAL_PROFILE): void {
-    let speed: number;
-    let bodyMin: number;
-    let bodyMax: number;
-    let coreMin: number;
-    let coreMax: number;
-    let glowMin: number;
-    let glowMax: number;
+  /** Soft body + core glow pulse — smoothly interpolated params, no hard switch */
+  private updateCorePulse(_elapsed: number, pB: number, mood: MoodAnimProfile, delta: number): void {
+    // Target params per state — lookup
+    const TARGETS: Record<AppState, typeof this.smoothCore> = {
+      idle:      { speed: 1.0, bodyMin: 0.12, bodyMax: 0.20, coreMin: 0.3, coreMax: 0.6, glowMin: 0.06, glowMax: 0.15 },
+      listening: { speed: 1.3, bodyMin: 0.15, bodyMax: 0.25, coreMin: 0.4, coreMax: 0.7, glowMin: 0.08, glowMax: 0.18 },
+      thinking:  { speed: 1.0, bodyMin: 0.12, bodyMax: 0.20, coreMin: 0.3, coreMax: 0.6, glowMin: 0.06, glowMax: 0.15 },
+      speaking:  { speed: 0.8, bodyMin: 0.20, bodyMax: 0.30, coreMin: 0.5, coreMax: 0.8, glowMin: 0.10, glowMax: 0.20 },
+    };
 
-    switch (this.currentState) {
-      case 'idle':
-        speed = 1.0;
-        bodyMin = 0.12; bodyMax = 0.20;
-        coreMin = 0.3; coreMax = 0.6;
-        glowMin = 0.06; glowMax = 0.15;
-        break;
-      case 'listening':
-        speed = 1.3;
-        bodyMin = 0.15; bodyMax = 0.25;
-        coreMin = 0.4; coreMax = 0.7;
-        glowMin = 0.08; glowMax = 0.18;
-        break;
-      case 'thinking':
-        // Same as idle — avatar stays calm while waiting for audio
-        speed = 1.0;
-        bodyMin = 0.12; bodyMax = 0.20;
-        coreMin = 0.3; coreMax = 0.6;
-        glowMin = 0.06; glowMax = 0.15;
-        break;
-      case 'speaking':
-        speed = 0.8;
-        bodyMin = 0.20; bodyMax = 0.30;
-        coreMin = 0.5; coreMax = 0.8;
-        glowMin = 0.10; glowMax = 0.20;
-        break;
-    }
+    // Smooth toward active state's targets
+    const tgt = TARGETS[this.currentState];
+    const r = 1 - Math.exp(-3.0 * delta);
+    this.smoothCore.speed   += (tgt.speed   - this.smoothCore.speed)   * r;
+    this.smoothCore.bodyMin += (tgt.bodyMin - this.smoothCore.bodyMin) * r;
+    this.smoothCore.bodyMax += (tgt.bodyMax - this.smoothCore.bodyMax) * r;
+    this.smoothCore.coreMin += (tgt.coreMin - this.smoothCore.coreMin) * r;
+    this.smoothCore.coreMax += (tgt.coreMax - this.smoothCore.coreMax) * r;
+    this.smoothCore.glowMin += (tgt.glowMin - this.smoothCore.glowMin) * r;
+    this.smoothCore.glowMax += (tgt.glowMax - this.smoothCore.glowMax) * r;
 
-    const t = Math.sin(elapsed * speed * mood.corePulseSpeedMult * Math.PI * 2) * 0.5 + 0.5;
+    const { speed, bodyMin, bodyMax, coreMin, coreMax, glowMin, glowMax } = this.smoothCore;
+    this.corePulsePhase += delta * speed * mood.corePulseSpeedMult * Math.PI * 2;
+    const t = Math.sin(this.corePulsePhase) * 0.5 + 0.5;
     const mI = mood.coreIntensityMult;
     this.bodyMat.emissiveIntensity = (bodyMin + (bodyMax - bodyMin) * t) * mI * pB;
     this.coreMat.emissiveIntensity = (coreMin + (coreMax - coreMin) * t) * mI * pB;
@@ -686,8 +688,11 @@ export class Avatar {
   private updateWingShimmer(elapsed: number, idleMix: number, delta: number, mood: MoodAnimProfile = NEUTRAL_PROFILE): void {
     const fSpd = mood.wingFlutterSpeedMult;
     const fAmp = mood.wingFlutterAmplitudeMult;
-    const flutter1 = Math.sin(elapsed * 3.2 * fSpd) * 0.05 * fAmp;
-    const flutter2 = Math.sin(elapsed * 3.8 * fSpd + 0.5) * 0.03 * fAmp;
+    // Phase-accumulated for glitch-free mood speed changes
+    this.wingPhase1 += delta * 3.2 * fSpd;
+    this.wingPhase2 += delta * 3.8 * fSpd;
+    const flutter1 = Math.sin(this.wingPhase1) * 0.05 * fAmp;
+    const flutter2 = Math.sin(this.wingPhase2 + 0.5) * 0.03 * fAmp;
 
     // Wing spread offset applied outside idleMix so mood spread persists during speaking
     this.wingGroupLeft.rotation.y = flutter1 * idleMix + mood.wingSpreadOffset;
@@ -781,14 +786,18 @@ export class Avatar {
     }
   }
 
-  /** Gentle antenna sway + tip glow pulse — modulated by mood */
-  private updateAntennae(elapsed: number, pB: number = 1, mood: MoodAnimProfile = NEUTRAL_PROFILE): void {
+  /** Gentle antenna sway + tip glow pulse — phase-accumulated, modulated by mood */
+  private updateAntennae(elapsed: number, delta: number, pB: number = 1, mood: MoodAnimProfile = NEUTRAL_PROFILE): void {
     const aSpd = mood.antennaSpeedMult;
     const aAmp = mood.antennaAmplitudeMult;
-    this.antennaLeft.rotation.z = Math.sin(elapsed * 1.2 * aSpd) * 0.08 * aAmp * pB;
-    this.antennaLeft.rotation.x = Math.sin(elapsed * 0.9 * aSpd + 0.5) * 0.04 * aAmp * pB;
-    this.antennaRight.rotation.z = Math.sin(elapsed * 1.2 * aSpd + 1.0) * 0.08 * aAmp * pB;
-    this.antennaRight.rotation.x = Math.sin(elapsed * 0.9 * aSpd + 1.5) * 0.04 * aAmp * pB;
+
+    // Phase-accumulated to avoid discontinuities on mood speed changes
+    this.antPhaseZ += delta * 1.2 * aSpd;
+    this.antPhaseX += delta * 0.9 * aSpd;
+    this.antennaLeft.rotation.z = Math.sin(this.antPhaseZ) * 0.08 * aAmp * pB;
+    this.antennaLeft.rotation.x = Math.sin(this.antPhaseX + 0.5) * 0.04 * aAmp * pB;
+    this.antennaRight.rotation.z = Math.sin(this.antPhaseZ + 1.0) * 0.08 * aAmp * pB;
+    this.antennaRight.rotation.x = Math.sin(this.antPhaseX + 1.5) * 0.04 * aAmp * pB;
 
     // Tip glow pulse (offset from core) — dimmed by presence
     const tipGlow = Math.sin(elapsed * 1.8 + 0.3) * 0.5 + 0.5;
@@ -797,38 +806,37 @@ export class Avatar {
 
   // ── State-specific overrides ──
 
-  /** Listening — forward lean, wings forward, brighter core */
-  private updateListening(_elapsed: number): void {
-    this.bodyAnimGroup.rotation.x = -0.04 * this.stateBlend;
+  /** Listening — forward lean, wings forward, brighter core (additive overlay) */
+  private updateListening(_elapsed: number, blend: number): void {
+    this.bodyAnimGroup.rotation.x += -0.04 * blend;
 
     // Wings angle slightly forward
-    this.wingGroupLeft.rotation.y += -0.06 * this.stateBlend;
-    this.wingGroupRight.rotation.y += 0.06 * this.stateBlend;
+    this.wingGroupLeft.rotation.y += -0.06 * blend;
+    this.wingGroupRight.rotation.y += 0.06 * blend;
 
     // Slightly open mouth
-    this.mouth.scale.y = 1.0 + 0.3 * this.stateBlend;
+    this.mouth.scale.y += 0.3 * blend;
   }
 
-  /** Thinking — subtle upward gaze via highlight shift (not whole eye group). */
-  private updateThinking(_elapsed: number): void {
+  /** Thinking — subtle upward gaze via highlight shift (additive overlay). */
+  private updateThinking(_elapsed: number, blend: number): void {
     // Nudge highlights upward — a "glancing up while thinking" gesture
-    const gazeUp = 0.004 * this.stateBlend;
+    const gazeUp = 0.004 * blend;
     for (const hl of [...this.leftHighlights, ...this.rightHighlights]) {
       hl.position.y += gazeUp;
     }
   }
 
-  /** Speaking — voice-reactive animation: mouth, core, body, wings, antennae */
-  private updateSpeaking(elapsed: number): void {
-    const blend = this.stateBlend;
+  /** Speaking — voice-reactive animation (additive overlay, blended materials) */
+  private updateSpeaking(elapsed: number, blend: number): void {
     const amp = this.audioAmplitude;
 
-    // ── Mouth: purely amplitude-driven — closes when no audio is flowing ──
+    // ── Mouth: additive on base (1,1,1), amplitude-driven ──
     const mouthOpen = amp;
-    this.mouth.scale.y = 1.0 + mouthOpen * 2.5 * blend;
-    this.mouth.scale.x = 1.0 + mouthOpen * 0.35 * blend;
+    this.mouth.scale.y += mouthOpen * 2.5 * blend;
+    this.mouth.scale.x += mouthOpen * 0.35 * blend;
 
-    // Mouth color: brighten toward mint during speaking
+    // Mouth color: blend from idle toward speak color (fades back as blend→0)
     this.mouthMat.color.copy(this.mouthIdleColor).lerp(this.mouthSpeakColor, blend * (0.5 + amp * 0.5));
 
     // ── Core glow reacts to voice ──
@@ -844,18 +852,21 @@ export class Avatar {
     this.wingGroupLeft.rotation.y += Math.sin(elapsed * 5.0) * 0.10 * wingAmp;
     this.wingGroupRight.rotation.y -= Math.sin(elapsed * 5.0) * 0.10 * wingAmp;
 
-    // ── Antenna excitement — faster, larger sway ──
-    this.antennaLeft.rotation.z += (Math.sin(elapsed * 4.5) * 0.18 - Math.sin(elapsed * 1.2) * 0.08) * blend;
-    this.antennaLeft.rotation.x += (Math.sin(elapsed * 3.0 + 0.5) * 0.10 - Math.sin(elapsed * 0.9 + 0.5) * 0.04) * blend;
-    this.antennaRight.rotation.z += (Math.sin(elapsed * 4.5 + 1.0) * 0.18 - Math.sin(elapsed * 1.2 + 1.0) * 0.08) * blend;
-    this.antennaRight.rotation.x += (Math.sin(elapsed * 3.0 + 1.5) * 0.10 - Math.sin(elapsed * 0.9 + 1.5) * 0.04) * blend;
+    // ── Antenna excitement — faster additive flutter ──
+    this.antennaLeft.rotation.z += Math.sin(elapsed * 4.5) * 0.10 * blend;
+    this.antennaLeft.rotation.x += Math.sin(elapsed * 3.0 + 0.5) * 0.06 * blend;
+    this.antennaRight.rotation.z += Math.sin(elapsed * 4.5 + 1.0) * 0.10 * blend;
+    this.antennaRight.rotation.x += Math.sin(elapsed * 3.0 + 1.5) * 0.06 * blend;
 
-    // ── Antenna tips: glow intensity tracks voice amplitude ──
-    this.antennaTipMat.opacity = 0.2 + amp * 0.8;
+    // ── Antenna tips: blend between base (set by updateAntennae) and speaking target ──
+    const baseTipOp = this.antennaTipMat.opacity;
+    const speakTipOp = 0.2 + amp * 0.8;
+    this.antennaTipMat.opacity += (speakTipOp - baseTipOp) * blend;
+    // Tip color: push toward white with amplitude, weighted by blend
     this.antennaTipMat.color.setRGB(
-      0.816 + amp * 0.184,   // R: push toward white at loud
-      1.0,                    // G: always full
-      0.957 + amp * 0.043,   // B: push toward white at loud
+      0.816 + amp * 0.184 * blend,
+      1.0,
+      0.957 + amp * 0.043 * blend,
     );
 
     // ── Eye highlights "light up" with voice — sparkles grow with amplitude ──

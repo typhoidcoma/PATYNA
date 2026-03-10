@@ -403,7 +403,8 @@ function lerpProfile(
     bodyTiltXOffset: l(a.bodyTiltXOffset, b.bodyTiltXOffset),
     verticalOffset: l(a.verticalOffset, b.verticalOffset),
     jitterAmplitude: l(a.jitterAmplitude, b.jitterAmplitude),
-    jitterSpeed: l(a.jitterSpeed, b.jitterSpeed),
+    // Snap jitter frequency to target side — lerping frequency causes chirp/buzz
+    jitterSpeed: b.jitterAmplitude > 0 ? b.jitterSpeed : a.jitterSpeed,
   };
 }
 
@@ -422,7 +423,7 @@ export class MoodAnimState {
   private fromProfile: MoodAnimProfile = { ...NEUTRAL_PROFILE };
   private toProfile: MoodAnimProfile = { ...NEUTRAL_PROFILE };
   private blend = 1.0;
-  private readonly transitionSpeed = 3.5; // ~95% in ~0.85s
+  private readonly transitionSpeed = 1.5; // ~95% in ~2.0s — gentle, organic transitions
 
   /** Current resolved profile — cached each frame. */
   private current: MoodAnimProfile = { ...NEUTRAL_PROFILE };
