@@ -51,7 +51,7 @@ export class Avatar {
   private bodyMat: THREE.MeshPhysicalMaterial;
   private coreMat: THREE.MeshStandardMaterial;
   private coreGlowMat: THREE.MeshBasicMaterial;
-  private wingMat: THREE.MeshBasicMaterial;
+  private wingMat: THREE.ShaderMaterial;
   private antennaTipMat: THREE.MeshBasicMaterial;
   private mouthMat!: THREE.MeshBasicMaterial;
 
@@ -216,19 +216,124 @@ export class Avatar {
   }
 
   /**
-   * Wing material — translucent saturated mint for ethereal butterfly feel.
-   * Lower opacity keeps them delicate; deeper color avoids white-out on dark bg.
+   * Wing material — custom shader with flowing contour lines and sparkle
+   * particles inspired by the environment shader.
    *
-   * The `.color` property is overwritten each frame by {@link updateWingShimmer}
-   * to smoothly lerp toward the active mood color (or back to default mint).
+   * Uniforms driven per-frame by {@link updateWingShimmer}:
+   *  - `uTime`    — elapsed seconds (animation driver)
+   *  - `uColor`   — mood-driven base tint (lerps toward active mood color)
+   *  - `uOpacity` — breathing opacity (0.42–0.56 range)
    */
-  private createWingMaterial(): THREE.MeshBasicMaterial {
-    return new THREE.MeshBasicMaterial({
-      color: '#6EECC0',
+  private createWingMaterial(): THREE.ShaderMaterial {
+    return new THREE.ShaderMaterial({
       transparent: true,
-      opacity: 0.48,
-      side: THREE.DoubleSide,
       depthWrite: false,
+      side: THREE.DoubleSide,
+      uniforms: {
+        uTime:    { value: 0 },
+        uColor:   { value: new THREE.Color('#6EECC0') },
+        uOpacity: { value: 0.48 },
+      },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform float uTime;
+        uniform vec3 uColor;
+        uniform float uOpacity;
+        varying vec2 vUv;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        void main() {
+          vec2 uv = vUv;
+          vec3 color = uColor;
+          float alpha = uOpacity;
+
+          // ── Contour field (flowing topographic lines) ──
+          // Scale up because ExtrudeGeometry UVs are in shape-coordinate
+          // space (~0–0.42), not normalised 0–1.
+          vec2 p = uv * 14.0;
+          float field = sin(p.x * 3.0 + uTime * 0.15)
+                      + sin(p.y * 2.5 - uTime * 0.10)
+                      + sin((p.x + p.y) * 1.8 + uTime * 0.08);
+          field *= 0.333;
+
+          float contour = abs(fract(field * 3.0) - 0.5);
+          contour = smoothstep(0.0, 0.05, contour);
+          float line = 1.0 - contour;
+
+          color += uColor * line * 0.30;
+          alpha += line * 0.06;
+
+          // ── Sparkle particles ──
+          for (int i = 0; i < 3; i++) {
+            float fi = float(i);
+            float gridSize = 18.0 + fi * 8.0;
+            vec2 grid = floor(uv * gridSize);
+            float h = hash(grid + fi * 10.0);
+
+            if (h > 0.74) {
+              vec2 cellUv = fract(uv * gridSize);
+              vec2 sparklePos = vec2(
+                hash(grid + fi * 20.0 + 1.0),
+                hash(grid + fi * 20.0 + 2.0)
+              );
+              sparklePos += vec2(
+                sin(uTime * 0.20 + h * 6.28) * 0.10,
+                cos(uTime * 0.15 + h * 3.14) * 0.10
+              );
+              float d = length(cellUv - sparklePos);
+
+              // Twinkle
+              float twinkle = sin(uTime * (1.5 + h * 3.0) + h * 6.28) * 0.5 + 0.5;
+              twinkle *= twinkle;
+
+              // Core dot + soft halo
+              float dot  = smoothstep(0.07, 0.0,  d) * twinkle;
+              float halo = smoothstep(0.16, 0.02, d) * twinkle * 0.25;
+              float combined = dot + halo;
+              float intensity = combined * (0.18 + fi * 0.04);
+
+              color += mix(uColor, vec3(1.0), 0.4) * intensity;
+              alpha += intensity * 0.08;
+            }
+          }
+
+          // ── Star sparkles: rare, brighter accent points ──
+          {
+            vec2 starGrid = floor(uv * 12.0);
+            float sh = hash(starGrid + 99.0);
+            if (sh > 0.90) {
+              vec2 starCellUv = fract(uv * 12.0);
+              vec2 starPos = vec2(hash(starGrid + 101.0), hash(starGrid + 102.0));
+              starPos += vec2(
+                sin(uTime * 0.10 + sh * 6.28) * 0.06,
+                cos(uTime * 0.08 + sh * 3.14) * 0.06
+              );
+              float sd = length(starCellUv - starPos);
+              float starTwinkle = sin(uTime * (0.6 + sh * 1.5) + sh * 6.28) * 0.5 + 0.5;
+              starTwinkle = starTwinkle * starTwinkle * starTwinkle;
+
+              float starCore = smoothstep(0.05, 0.0,  sd) * starTwinkle;
+              float starHalo = smoothstep(0.20, 0.01, sd) * starTwinkle * 0.15;
+              float starVal = starCore + starHalo;
+
+              color += mix(uColor, vec3(1.0), 0.35) * starVal * 0.5;
+              alpha += starVal * 0.06;
+            }
+          }
+
+          alpha = clamp(alpha, 0.0, 1.0);
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
     });
   }
 
@@ -577,7 +682,7 @@ export class Avatar {
     this.coreGlowMat.opacity = (glowMin + (glowMax - glowMin) * t) * mI * pB;
   }
 
-  /** Continuous wing flutter + shimmer + mood color + mood spread */
+  /** Continuous wing flutter + shimmer + mood color + mood spread + shader animation */
   private updateWingShimmer(elapsed: number, idleMix: number, delta: number, mood: MoodAnimProfile = NEUTRAL_PROFILE): void {
     const fSpd = mood.wingFlutterSpeedMult;
     const fAmp = mood.wingFlutterAmplitudeMult;
@@ -590,13 +695,16 @@ export class Avatar {
     this.wingGroupLeft.rotation.z = flutter2 * idleMix;
     this.wingGroupRight.rotation.z = -flutter2 * idleMix;
 
+    // ── Shader uniforms ──
+    this.wingMat.uniforms.uTime.value = elapsed;
+
     // Soft opacity breathing — translucent shimmer
     const shimmer = Math.sin(elapsed * 1.8) * 0.5 + 0.5;
-    this.wingMat.opacity = 0.42 + shimmer * 0.14;
+    this.wingMat.uniforms.uOpacity.value = 0.42 + shimmer * 0.14;
 
     // Smooth-lerp wing color toward mood target
     this.wingCurrentColor.lerp(this.wingTargetColor, Math.min(1, delta * 5.0));
-    this.wingMat.color.copy(this.wingCurrentColor);
+    this.wingMat.uniforms.uColor.value.copy(this.wingCurrentColor);
   }
 
   /** Deterministic blink — cycle and eye scale modulated by mood. Eyes close when gone. */
