@@ -92,6 +92,9 @@ export class App {
     sceneWrap.className = 'scene-wrap';
     mainContent.appendChild(sceneWrap);
 
+    // Attach appBody to DOM early so sceneWrap has layout dimensions for WebGL
+    container.appendChild(appBody);
+
     // 3D Scene — renders into the scene wrapper so it never overlaps the panel
     this.sceneManager = new SceneManager(sceneWrap, config);
 
@@ -113,11 +116,8 @@ export class App {
     // Avatar gaze controller
     this.avatarController = new AvatarController(this.avatar, config);
 
-    // HUD — nav bar into container (#app), overlay into sceneWrap, panel into mainContent
+    // HUD — nav bar prepended to container (#app, before appBody), overlay into sceneWrap, panel into mainContent
     this.hud = new HUD(sceneWrap, mainContent, container);
-
-    // Append app-body after HUD (so nav bar is first child of #app)
-    container.appendChild(appBody);
 
     // Sidebar — inside app-body so scrim covers body area, not nav bar
     this.sidebar = new Sidebar(appBody);

@@ -127,7 +127,7 @@ export class HUD {
     navRight.append(this.dashBtn);
 
     this.nav.append(navLeft, navCenter, navRight);
-    navContainer.appendChild(this.nav);
+    navContainer.prepend(this.nav);
 
     // ════════════════════════════════════════════
     // OVERLAY — positioned absolute over the 3D scene
