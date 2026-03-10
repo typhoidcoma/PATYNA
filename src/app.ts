@@ -418,7 +418,7 @@ export class App {
         return;
       }
     }
-    this.voiceManager.resume();
+    await this.voiceManager.resume();
   }
 
   /** Lazy-init camera + face tracking on first camera toggle. */

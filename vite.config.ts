@@ -59,6 +59,17 @@ export default defineConfig({
   server: {
     port: 3005,
     allowedHosts: true, // allow any host (Tailscale, LAN, etc.)
+    headers: {
+      // Required for SharedArrayBuffer — ONNX runtime threaded WASM (Silero VAD)
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
+    },
+  },
+  preview: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
+    },
   },
   assetsInclude: ['**/*.glb', '**/*.gltf'],
 });

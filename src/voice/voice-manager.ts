@@ -65,11 +65,11 @@ export class VoiceManager {
 
       // Pause VAD while TTS is playing to prevent echo
       eventBus.on('audio:playbackStart', () => {
-        this.vad.pause();
+        this.vad.pause().catch((err) => console.warn('[Voice] VAD pause failed:', err));
       });
 
       eventBus.on('audio:playbackEnd', () => {
-        this.vad.resume();
+        this.vad.resume().catch((err) => console.warn('[Voice] VAD resume failed:', err));
       });
 
       this._initialized = true;
@@ -98,18 +98,18 @@ export class VoiceManager {
   }
 
   /** Pause VAD listening (mic mute). */
-  pause(): void {
+  async pause(): Promise<void> {
     if (this._micAvailable) {
-      this.vad.pause();
+      await this.vad.pause();
       if (this.stt.listening) this.stt.stop();
       console.log('[Voice] Paused');
     }
   }
 
   /** Resume VAD listening (mic unmute). */
-  resume(): void {
+  async resume(): Promise<void> {
     if (this._micAvailable) {
-      this.vad.resume();
+      await this.vad.resume();
       console.log('[Voice] Resumed');
     }
   }
