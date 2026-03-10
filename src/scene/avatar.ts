@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { eventBus } from '@/core/event-bus.ts';
 import { getMoodColor } from './mood-colors.ts';
+import { type MoodAnimProfile, NEUTRAL_PROFILE, MoodAnimState } from './mood-animations.ts';
 import type { AppState } from '@/types/config.ts';
 
 /**
@@ -12,9 +13,9 @@ import type { AppState } from '@/types/config.ts';
  * Reactivity layers:
  *  - **App state** (idle / listening / thinking / speaking) — drives core pulse,
  *    wing flutter speed, mouth animation, and antenna excitement.
- *  - **Mood** (`comm:mood` events) — tints wing color toward the Plutchik
- *    emotion palette via smooth per-frame lerp. Reverts to default mint
- *    when mood becomes inactive.
+ *  - **Mood** (`comm:mood` events) — tints wing color AND drives animation
+ *    profiles (bob speed, wing flutter, eye scale, body tilt, etc.) based
+ *    on the Plutchik emotion × intensity. Reverts to neutral when inactive.
  *  - **Presence** (present / away / gone) — global multiplier on all
  *    animation amplitude and glow intensity.
  *  - **Voice amplitude** — mouth shape, core brightness, wing flutter
@@ -73,6 +74,9 @@ export class Avatar {
   private readonly wingDefaultColor = new THREE.Color('#6EECC0');
   private wingTargetColor = new THREE.Color('#6EECC0');
   private wingCurrentColor = new THREE.Color('#6EECC0');
+
+  // Mood animation — smooth profile transitions
+  private moodAnimState = new MoodAnimState();
 
   // Stored base positions for reset each frame
   private eyeBaseY = 0;
@@ -140,16 +144,18 @@ export class Avatar {
       }
     });
 
-    // Listen for mood changes → tint wings toward mood color
+    // Listen for mood changes → tint wings + drive animation profile
     eventBus.on('comm:mood', ({ emotion, intensity, active }) => {
       if (!active) {
         this.wingTargetColor.copy(this.wingDefaultColor);
+        this.moodAnimState.clearMood();
         return;
       }
       const c = getMoodColor(emotion as string, intensity as string);
       if (c) {
         this.wingTargetColor.copy(c);
       }
+      this.moodAnimState.setMood(emotion, intensity);
     });
 
   }
@@ -455,6 +461,9 @@ export class Avatar {
     const targetIdleMix = this.currentState === 'speaking' ? 0.15 : 1.0;
     this.smoothIdleMix += (targetIdleMix - this.smoothIdleMix) * (1 - Math.exp(-5 * _delta));
 
+    // ── Resolve mood animation profile (smooth transition) ──
+    const mood = this.moodAnimState.resolve(_delta);
+
     // Reset animated properties to base values
     this.bodyAnimGroup.position.set(0, 0, 0);
     this.bodyAnimGroup.rotation.set(0, 0, 0);
@@ -463,23 +472,34 @@ export class Avatar {
     this.mouth.scale.set(1, 1, 1);
 
     // ── Core pulse (always active, speed varies by state) ──
-    this.updateCorePulse(elapsed, pB);
+    this.updateCorePulse(elapsed, pB, mood);
 
-    // ── Hover bob (~3.5s cycle) — scaled by presence ──
-    const bobT = Math.sin(elapsed * 0.285 * Math.PI * 2);
-    this.bodyAnimGroup.position.y = bobT * 0.015 * this.smoothIdleMix * pB;
+    // ── Hover bob (~3.5s cycle) — scaled by presence + mood ──
+    const bobT = Math.sin(elapsed * 0.285 * mood.bobSpeedMult * Math.PI * 2);
+    this.bodyAnimGroup.position.y = bobT * 0.015 * mood.bobAmplitudeMult * this.smoothIdleMix * pB
+      + mood.verticalOffset * pB;
 
-    // ── Micro-rotation sway ──
-    this.bodyAnimGroup.rotation.z = Math.sin(elapsed * 0.9) * 0.012 * this.smoothIdleMix * pB;
+    // ── Micro-rotation sway — scaled by mood ──
+    this.bodyAnimGroup.rotation.z = Math.sin(elapsed * 0.9 * mood.swaySpeedMult)
+      * 0.012 * mood.swayAmplitudeMult * this.smoothIdleMix * pB;
 
-    // ── Wing shimmer (continuous) — scaled by presence ──
-    this.updateWingShimmer(elapsed, this.smoothIdleMix * pB, _delta);
+    // ── Mood: body tilt offset ──
+    this.bodyAnimGroup.rotation.x += mood.bodyTiltXOffset * pB;
 
-    // ── Blink / eyes closing when gone ──
-    this.updateBlink(elapsed, pB);
+    // ── Mood: jitter overlay (fear, anger trembling) ──
+    if (mood.jitterAmplitude > 0) {
+      this.bodyAnimGroup.position.x += Math.sin(elapsed * mood.jitterSpeed) * mood.jitterAmplitude * pB;
+      this.bodyAnimGroup.position.y += Math.cos(elapsed * mood.jitterSpeed * 1.3) * mood.jitterAmplitude * 0.7 * pB;
+    }
 
-    // ── Antenna sway — scaled by presence ──
-    this.updateAntennae(elapsed, pB);
+    // ── Wing shimmer (continuous) — scaled by presence + mood ──
+    this.updateWingShimmer(elapsed, this.smoothIdleMix * pB, _delta, mood);
+
+    // ── Blink / eyes closing when gone — scaled by mood ──
+    this.updateBlink(elapsed, pB, mood);
+
+    // ── Antenna sway — scaled by presence + mood ──
+    this.updateAntennae(elapsed, pB, mood);
 
     // ── State-specific reactions ──
     switch (this.currentState) {
@@ -496,7 +516,7 @@ export class Avatar {
   }
 
   /** Soft body + core glow pulse — the whole body breathes light */
-  private updateCorePulse(elapsed: number, pB: number = 1): void {
+  private updateCorePulse(elapsed: number, pB: number = 1, mood: MoodAnimProfile = NEUTRAL_PROFILE): void {
     let speed: number;
     let bodyMin: number;
     let bodyMax: number;
@@ -533,19 +553,23 @@ export class Avatar {
         break;
     }
 
-    const t = Math.sin(elapsed * speed * Math.PI * 2) * 0.5 + 0.5;
-    this.bodyMat.emissiveIntensity = (bodyMin + (bodyMax - bodyMin) * t) * pB;
-    this.coreMat.emissiveIntensity = (coreMin + (coreMax - coreMin) * t) * pB;
-    this.coreGlowMat.opacity = (glowMin + (glowMax - glowMin) * t) * pB;
+    const t = Math.sin(elapsed * speed * mood.corePulseSpeedMult * Math.PI * 2) * 0.5 + 0.5;
+    const mI = mood.coreIntensityMult;
+    this.bodyMat.emissiveIntensity = (bodyMin + (bodyMax - bodyMin) * t) * mI * pB;
+    this.coreMat.emissiveIntensity = (coreMin + (coreMax - coreMin) * t) * mI * pB;
+    this.coreGlowMat.opacity = (glowMin + (glowMax - glowMin) * t) * mI * pB;
   }
 
-  /** Continuous wing flutter + shimmer + mood color */
-  private updateWingShimmer(elapsed: number, idleMix: number, delta: number): void {
-    const flutter1 = Math.sin(elapsed * 3.2) * 0.05;
-    const flutter2 = Math.sin(elapsed * 3.8 + 0.5) * 0.03;
+  /** Continuous wing flutter + shimmer + mood color + mood spread */
+  private updateWingShimmer(elapsed: number, idleMix: number, delta: number, mood: MoodAnimProfile = NEUTRAL_PROFILE): void {
+    const fSpd = mood.wingFlutterSpeedMult;
+    const fAmp = mood.wingFlutterAmplitudeMult;
+    const flutter1 = Math.sin(elapsed * 3.2 * fSpd) * 0.05 * fAmp;
+    const flutter2 = Math.sin(elapsed * 3.8 * fSpd + 0.5) * 0.03 * fAmp;
 
-    this.wingGroupLeft.rotation.y = flutter1 * idleMix;
-    this.wingGroupRight.rotation.y = -flutter1 * idleMix;
+    // Wing spread offset applied outside idleMix so mood spread persists during speaking
+    this.wingGroupLeft.rotation.y = flutter1 * idleMix + mood.wingSpreadOffset;
+    this.wingGroupRight.rotation.y = -flutter1 * idleMix - mood.wingSpreadOffset;
     this.wingGroupLeft.rotation.z = flutter2 * idleMix;
     this.wingGroupRight.rotation.z = -flutter2 * idleMix;
 
@@ -558,9 +582,9 @@ export class Avatar {
     this.wingMat.color.copy(this.wingCurrentColor);
   }
 
-  /** Deterministic blink — ~4s cycle, 0.15s duration. Eyes close when gone. */
-  private updateBlink(elapsed: number, pB: number = 1): void {
-    const blinkCycle = 4.0;
+  /** Deterministic blink — cycle and eye scale modulated by mood. Eyes close when gone. */
+  private updateBlink(elapsed: number, pB: number = 1, mood: MoodAnimProfile = NEUTRAL_PROFILE): void {
+    const blinkCycle = 4.0 * mood.blinkCycleMult;
     const blinkDuration = 0.15;
     const phase = elapsed % blinkCycle;
 
@@ -568,7 +592,6 @@ export class Avatar {
     if (phase < blinkDuration) {
       const t = phase / blinkDuration;
       eyeScaleY = 1.0 - Math.sin(t * Math.PI);
-      eyeScaleY = Math.max(0.05, eyeScaleY);
     }
 
     // Close eyes when presence fades (pB < 0.3 = fully closed)
@@ -577,16 +600,24 @@ export class Avatar {
       eyeScaleY *= Math.min(1.0, eyeClose);
     }
 
+    // Apply mood eye scale (wider for surprise, squinted for sadness)
+    eyeScaleY *= mood.eyeScaleYMult;
+
+    // Safety floor — never fully invisible
+    eyeScaleY = Math.max(0.05, eyeScaleY);
+
     this.leftEyeGroup.scale.y = eyeScaleY;
     this.rightEyeGroup.scale.y = eyeScaleY;
   }
 
-  /** Gentle antenna sway + tip glow pulse */
-  private updateAntennae(elapsed: number, pB: number = 1): void {
-    this.antennaLeft.rotation.z = Math.sin(elapsed * 1.2) * 0.08 * pB;
-    this.antennaLeft.rotation.x = Math.sin(elapsed * 0.9 + 0.5) * 0.04 * pB;
-    this.antennaRight.rotation.z = Math.sin(elapsed * 1.2 + 1.0) * 0.08 * pB;
-    this.antennaRight.rotation.x = Math.sin(elapsed * 0.9 + 1.5) * 0.04 * pB;
+  /** Gentle antenna sway + tip glow pulse — modulated by mood */
+  private updateAntennae(elapsed: number, pB: number = 1, mood: MoodAnimProfile = NEUTRAL_PROFILE): void {
+    const aSpd = mood.antennaSpeedMult;
+    const aAmp = mood.antennaAmplitudeMult;
+    this.antennaLeft.rotation.z = Math.sin(elapsed * 1.2 * aSpd) * 0.08 * aAmp * pB;
+    this.antennaLeft.rotation.x = Math.sin(elapsed * 0.9 * aSpd + 0.5) * 0.04 * aAmp * pB;
+    this.antennaRight.rotation.z = Math.sin(elapsed * 1.2 * aSpd + 1.0) * 0.08 * aAmp * pB;
+    this.antennaRight.rotation.x = Math.sin(elapsed * 0.9 * aSpd + 1.5) * 0.04 * aAmp * pB;
 
     // Tip glow pulse (offset from core) — dimmed by presence
     const tipGlow = Math.sin(elapsed * 1.8 + 0.3) * 0.5 + 0.5;

@@ -15,7 +15,6 @@
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.32",
-    "@ricky0123/vad-web": "^0.0.30",
     "three": "^0.172.0"
   }
 }
