@@ -14,18 +14,26 @@ export class Sidebar {
   private calendarWidget: WidgetSection;
   private tasksWidget: WidgetSection;
   private linearWidget: WidgetSection;
-  private visible = true;
+  private visible: boolean;
 
   constructor(container: HTMLElement) {
+    // On mobile/tablet the sidebar starts hidden (off-screen overlay);
+    // on desktop it starts visible (inline panel).
+    this.visible = window.innerWidth >= 1024;
+
     this.el = document.createElement('div');
     this.el.className = 'sidebar';
+
+    // If desktop starts collapsed, apply the class immediately
+    if (!this.visible && window.innerWidth >= 1024) {
+      this.el.classList.add('collapsed');
+    }
 
     // Scrim — translucent backdrop for mobile overlay; tap to dismiss
     this.scrim = document.createElement('div');
     this.scrim.className = 'sidebar-scrim';
     this.scrim.addEventListener('click', () => {
       this.hide();
-      eventBus.emit('sidebar:closed');
     });
     container.appendChild(this.scrim);
 
@@ -62,6 +70,9 @@ export class Sidebar {
     eventBus.on('sidebar:toggle', () => {
       this.toggle();
     });
+
+    // Emit initial state so the HUD dash button syncs on load
+    eventBus.emit('sidebar:stateChange', { visible: this.visible });
   }
 
   // ── Render methods ──
@@ -150,6 +161,8 @@ export class Sidebar {
       // Desktop: inline collapse
       this.el.classList.toggle('collapsed', !this.visible);
     }
+
+    eventBus.emit('sidebar:stateChange', { visible: this.visible });
   }
 
   show(): void {
@@ -160,6 +173,7 @@ export class Sidebar {
     } else {
       this.el.classList.remove('collapsed');
     }
+    eventBus.emit('sidebar:stateChange', { visible: true });
   }
 
   hide(): void {
@@ -169,6 +183,7 @@ export class Sidebar {
     if (window.innerWidth >= 1024) {
       this.el.classList.add('collapsed');
     }
+    eventBus.emit('sidebar:stateChange', { visible: false });
   }
 
   destroy(): void {

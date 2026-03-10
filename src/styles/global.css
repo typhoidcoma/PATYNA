@@ -26,9 +26,9 @@ canvas {
   display: block;
 }
 
-/* Left column: 3D scene + chat panel */
+/* Left column: 3D scene + chat panel (2/3 width) */
 .main-content {
-  flex: 1;
+  flex: 2;
   display: flex;
   flex-direction: column;
   min-height: 0;

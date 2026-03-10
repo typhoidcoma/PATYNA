@@ -2,8 +2,8 @@
    Sidebar — glass dashboard widgets panel
    ════════════════════════════════════════════ */
 .sidebar {
-  width: 320px;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -14,15 +14,16 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding-top: var(--space-md);
-  transition: width var(--duration-normal) var(--ease-smooth),
+  transition: flex var(--duration-normal) var(--ease-smooth),
               opacity var(--duration-normal) var(--ease-smooth);
 }
 
 .sidebar.collapsed {
-  width: 0;
+  flex: 0;
   opacity: 0;
   border-left: none;
   pointer-events: none;
+  overflow: hidden;
 }
 
 /* Scrollbar */
@@ -279,6 +280,7 @@
 /* Below 1024px: sidebar becomes overlay with transform slide */
 @media (max-width: 1023px) {
   .sidebar {
+    flex: none;
     position: absolute;
     right: 0;
     top: 0;
@@ -295,10 +297,12 @@
 
   /* Desktop collapsed class shouldn't interfere on mobile */
   .sidebar.collapsed {
+    flex: none;
     width: min(320px, 85vw);
     opacity: 1;
     border-left: 1px solid var(--border-soft);
     transform: translateX(100%);
+    overflow: visible;
   }
 
   .sidebar.force-show {

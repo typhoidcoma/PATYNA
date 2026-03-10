@@ -90,7 +90,7 @@ export class HUD {
     this.dashBtn = document.createElement('button');
     this.dashBtn.className = 'hud-toggle-btn';
     this.dashBtn.dataset.kind = 'dash';
-    this.dashBtn.dataset.active = 'on';
+    this.dashBtn.dataset.active = 'off'; // sidebar emits initial state to sync this
     this.dashBtn.textContent = '\u2630';
     this.dashBtn.title = 'Toggle dashboard sidebar';
 
@@ -222,8 +222,6 @@ export class HUD {
       eventBus.emit('media:ttsToggle', { enabled: this.ttsEnabled });
     });
     this.dashBtn.addEventListener('click', () => {
-      const isOn = this.dashBtn.dataset.active === 'on';
-      this.dashBtn.dataset.active = isOn ? 'off' : 'on';
       eventBus.emit('sidebar:toggle');
     });
 
@@ -277,9 +275,9 @@ export class HUD {
       this.setMood(mood);
     });
 
-    // Sidebar closed (from scrim tap on mobile)
-    eventBus.on('sidebar:closed', () => {
-      this.dashBtn.dataset.active = 'off';
+    // Sidebar state → sync dash button
+    eventBus.on('sidebar:stateChange', ({ visible }) => {
+      this.dashBtn.dataset.active = visible ? 'on' : 'off';
     });
 
     // Errors
