@@ -12,6 +12,7 @@
  */
 
 const BUFFER_CAPACITY = 24000 * 10; // 10 seconds at 24kHz
+const PRE_BUFFER = 24000 * 0.15;   // 150ms pre-buffer before starting playback
 
 class PlaybackProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -21,6 +22,7 @@ class PlaybackProcessor extends AudioWorkletProcessor {
     this._writePos = 0;
     this._available = 0;
     this._playing = false;
+    this._draining = false; // true once we've started playing (disables pre-buffer gate)
 
     this.port.onmessage = (ev) => {
       const msg = ev.data;
@@ -30,6 +32,7 @@ class PlaybackProcessor extends AudioWorkletProcessor {
         this._readPos = 0;
         this._writePos = 0;
         this._available = 0;
+        this._draining = false;
         if (this._playing) {
           this._playing = false;
           this.port.postMessage({ type: 'state', playing: false });
@@ -59,8 +62,17 @@ class PlaybackProcessor extends AudioWorkletProcessor {
     const channel = output[0];
     const frameSamples = channel.length; // Typically 128
 
+    // Pre-buffer gate: wait until we've accumulated enough data before
+    // starting playback. This absorbs network jitter from ElevenLabs
+    // streaming and prevents starvation at the start of each response.
+    if (!this._draining && this._available < PRE_BUFFER) {
+      for (let i = 0; i < frameSamples; i++) channel[i] = 0;
+      return true;
+    }
+
     if (this._available >= frameSamples) {
       // Read from ring buffer
+      this._draining = true;
       for (let i = 0; i < frameSamples; i++) {
         channel[i] = this._buffer[this._readPos];
         this._readPos = (this._readPos + 1) % BUFFER_CAPACITY;
@@ -82,10 +94,10 @@ class PlaybackProcessor extends AudioWorkletProcessor {
       }
       this._available = 0;
 
-      // Buffer starved
+      // Buffer fully drained — response is complete
       this._playing = false;
+      this._draining = false;
       this.port.postMessage({ type: 'state', playing: false });
-      this.port.postMessage({ type: 'starved' });
     } else {
       // Nothing to play — output silence
       for (let i = 0; i < frameSamples; i++) {
@@ -93,6 +105,7 @@ class PlaybackProcessor extends AudioWorkletProcessor {
       }
       if (this._playing) {
         this._playing = false;
+        this._draining = false;
         this.port.postMessage({ type: 'state', playing: false });
       }
     }
