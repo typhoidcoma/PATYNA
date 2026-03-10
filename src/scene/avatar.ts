@@ -823,10 +823,8 @@ export class Avatar {
     const blend = this.stateBlend;
     const amp = this.audioAmplitude;
 
-    // ── Mouth: amplitude-driven when audio is flowing, sine fallback otherwise ──
-    const sineOpen = (Math.sin(elapsed * 10.0) * 0.5 + 0.5)
-                   * (Math.sin(elapsed * 6.5) * 0.3 + 0.7);
-    const mouthOpen = amp > 0.01 ? amp : sineOpen * 0.4;
+    // ── Mouth: purely amplitude-driven — closes when no audio is flowing ──
+    const mouthOpen = amp;
     this.mouth.scale.y = 1.0 + mouthOpen * 2.5 * blend;
     this.mouth.scale.x = 1.0 + mouthOpen * 0.35 * blend;
 

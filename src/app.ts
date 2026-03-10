@@ -192,11 +192,23 @@ export class App {
       this.tryFinishResponse();
     });
 
-    // ── TTS audio playback — THIS triggers speaking state ──
+    // ── TTS stream lifecycle (ElevenLabs WS open/close) ──
+
+    // ElevenLabs WS connected — stream is now open
+    eventBus.on('audio:ttsStreamStart', () => {
+      this.ttsStreamOpen = true;
+    });
+
+    // ElevenLabs finished sending all audio for this response
+    eventBus.on('audio:ttsStreamDone', () => {
+      this.ttsStreamOpen = false;
+      this.tryFinishResponse();
+    });
+
+    // ── Audio worklet playback state ──
 
     eventBus.on('audio:playbackStart', () => {
       this.audioPlaying = true;
-      this.ttsStreamOpen = true;
       // Transition to speaking when voice actually starts
       const s = this.stateMachine.state;
       if (s === 'thinking' || s === 'idle') {
@@ -207,12 +219,6 @@ export class App {
     // Audio playback finished — go idle if text is also done
     eventBus.on('audio:playbackEnd', () => {
       this.audioPlaying = false;
-      this.tryFinishResponse();
-    });
-
-    // ElevenLabs finished sending all audio for this response
-    eventBus.on('audio:ttsStreamDone', () => {
-      this.ttsStreamOpen = false;
       this.tryFinishResponse();
     });
 

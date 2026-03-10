@@ -82,6 +82,7 @@ export class ElevenLabsTTS {
       this.ws.onopen = () => {
         this.state = 'streaming';
         console.log('[ElevenLabs] WS connected');
+        eventBus.emit('audio:ttsStreamStart');
 
         // Send BOS (beginning of stream) with settings
         this.ws!.send(JSON.stringify({

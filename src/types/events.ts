@@ -28,6 +28,7 @@ export interface EventMap {
   'audio:chunkReceived': { data: Float32Array };
   'audio:playbackStart': void;
   'audio:playbackEnd': void;
+  'audio:ttsStreamStart': void;
   'audio:ttsStreamDone': void;
   'audio:amplitude': { value: number };
 
