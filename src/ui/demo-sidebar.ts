@@ -22,7 +22,7 @@ export class DemoSidebar {
   private pointsLabel: HTMLSpanElement;
 
   /** Called when a task checkbox is clicked */
-  onTaskComplete: ((taskId: string) => void) | null = null;
+  onTaskComplete: ((taskId: string, checkboxEl: HTMLElement) => void) | null = null;
 
   private goals: DemoGoal[] = [];
   private tasks: DemoTask[] = [];
@@ -176,7 +176,7 @@ export class DemoSidebar {
       checkbox.disabled = task.completed;
       checkbox.addEventListener('click', () => {
         if (!task.completed) {
-          this.onTaskComplete?.(task.id);
+          this.onTaskComplete?.(task.id, checkbox);
         }
       });
 
@@ -208,6 +208,10 @@ export class DemoSidebar {
 
   get tasksWidget(): HTMLDivElement {
     return this.tasksSection;
+  }
+
+  get pointsBarEl(): HTMLDivElement {
+    return this.pointsBar;
   }
 
   destroy(): void {

@@ -80,76 +80,56 @@ export class DemoState {
     let announcement: string;
 
     if (allDone) {
-      announcement = `I just completed the LAST task "${task.title}" and earned ${task.points} points! ALL ${progress.total} tasks are done — ${progress.maxPoints}/${progress.maxPoints} points! Celebrate with me!`;
+      announcement = `Done! "${task.title}" +${task.points}pts — ALL tasks complete! ${progress.maxPoints}/${progress.maxPoints}pts! Celebrate!`;
     } else {
-      announcement = `I just completed the task "${task.title}" and earned ${task.points} points. My progress is now ${progress.points}/${progress.maxPoints} points (${progress.completed}/${progress.total} tasks done).`;
+      announcement = `Done! "${task.title}" +${task.points}pts. Now ${progress.points}/${progress.maxPoints}pts (${progress.completed}/${progress.total} tasks).`;
     }
 
-    return `${this.buildContext()}\n\n${announcement}`;
+    return `${this.buildContext()}\n${announcement}`;
   }
 
-  /** Wrap a user's free-text message with dashboard context. */
+  /** Wrap a user's free-text message — context is already in conversation history. */
   wrapMessage(userText: string): string {
-    return `${this.buildContext()}\n\n${userText}`;
+    return userText;
   }
 
   /** Reset all state and return a priming message for the LLM. */
   reset(): string {
     this.loadFixture();
     eventBus.emit('demo:reset');
-    return `${this.buildContext()}\n\nThe dashboard has been reset. All tasks are back to incomplete. Let's start fresh!`;
+    return `${this.buildContext()}\nDashboard reset. All tasks incomplete. Fresh start!`;
   }
 
   /** Build the initial priming message for the LLM on connect. */
   buildPrimingMessage(username: string): string {
-    return `${this.buildContext()}\n\nYou are Patyna, a friendly and enthusiastic AI productivity assistant. The user's name is ${username}. Greet them warmly and briefly mention what's on their schedule and tasks for today. Keep it concise — 2-3 sentences max.`;
+    return `${this.buildContext()}\n\nUser: ${username}. Greet them, mention schedule & tasks. 2-3 sentences max.`;
   }
 
   // ── Context builder ──
 
   buildContext(): string {
     const now = new Date();
-    const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });
-    const dateFull = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const dayName = now.toLocaleDateString('en-US', { weekday: 'short' });
+    const dateFull = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-    const scheduleLines = this.schedule
-      .map((s) => `  ${s.time} — ${s.title} (${s.type})`)
-      .join('\n');
+    const schedule = this.schedule.map((s) => `${s.time} ${s.title}`).join(', ');
 
-    const goalLines = this.goals
+    const goals = this.goals
       .map((g) => {
         const tasks = this.getTasks(g.id);
         const done = tasks.filter((t) => t.completed).length;
-        return `  ${g.title} (${done}/${tasks.length} tasks done)`;
+        return `${g.title} ${done}/${tasks.length}`;
       })
-      .join('\n');
+      .join(', ');
 
     const remaining = this.tasks
       .filter((t) => !t.completed)
-      .map((t) => `  ${t.title} (${t.points}pts)`)
-      .join('\n');
-
-    const completed = this.tasks
-      .filter((t) => t.completed)
-      .map((t) => `  ${t.title} (${t.points}pts)`)
-      .join('\n');
+      .map((t) => `${t.title} (${t.points}pts)`)
+      .join(', ');
 
     const progress = this.getProgress();
 
-    let ctx = `[Dashboard Context]\nToday: ${dayName}, ${dateFull}\n`;
-    ctx += `\nSchedule:\n${scheduleLines}\n`;
-    ctx += `\nGoals:\n${goalLines}\n`;
-
-    if (remaining) {
-      ctx += `\nTasks remaining:\n${remaining}\n`;
-    }
-    if (completed) {
-      ctx += `\nTasks completed:\n${completed}\n`;
-    }
-
-    ctx += `\nProgress: ${progress.points}/${progress.maxPoints} points (${progress.completed}/${progress.total} tasks)`;
-
-    return ctx;
+    return `[Context] ${dayName} ${dateFull} | Schedule: ${schedule} | Goals: ${goals} | Remaining: ${remaining || 'none'} | ${progress.points}/${progress.maxPoints}pts`;
   }
 
   // ── Internal ──

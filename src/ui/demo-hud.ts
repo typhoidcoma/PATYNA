@@ -34,6 +34,7 @@ export class DemoHUD {
   private toast: HTMLDivElement;
   private toastTimer = 0;
   private userTextTimer = 0;
+  private responseFadeTimer = 0;
 
   /** Username entered on the login screen */
   enteredUsername = '';
@@ -274,6 +275,9 @@ export class DemoHUD {
   // ── Response methods ──
 
   private appendResponse(delta: string): void {
+    clearTimeout(this.responseFadeTimer);
+
+    // New response starting — clear old text immediately
     if (this.responseBuffer.length === 0) {
       this.responseText.textContent = '';
     }
@@ -286,6 +290,14 @@ export class DemoHUD {
     this.responseBuffer = fullText;
     this.responseText.textContent = fullText;
     this.responseArea.classList.add('visible');
+
+    // Fade out old text after reading time
+    clearTimeout(this.responseFadeTimer);
+    this.responseFadeTimer = window.setTimeout(() => {
+      this.responseArea.classList.remove('visible');
+      // Clear buffer so next response starts fresh
+      this.responseBuffer = '';
+    }, 8000);
   }
 
   // ── Internal ──

@@ -30,6 +30,7 @@ import { TodayCard } from '@/ui/today-card.ts';
 import { DemoSidebar } from '@/ui/demo-sidebar.ts';
 import { DemoState } from './demo-state.ts';
 import { makeDraggable, makeScrollDraggable } from '@/ui/draggable.ts';
+import { burstStars, miniSparkle, flashGold, sparkleBar, playCelebrateChime } from '@/fx/celebration.ts';
 import { DEFAULT_CONFIG, type PatynaConfig } from '@/types/config.ts';
 import type { MoodData } from '@/types/messages.ts';
 
@@ -64,6 +65,8 @@ export class DemoApp {
   private textStreamDone = false;
   private audioPlaying = false;
   private ttsStreamOpen = false;
+  private finishTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingTaskMessage: string | null = null;
 
   constructor(
     container: HTMLElement,
@@ -146,9 +149,17 @@ export class DemoApp {
     // ── Wire callbacks ──
 
     // Task completion → send enriched message to LLM
-    this.demoSidebar.onTaskComplete = (taskId) => {
+    // If the bot is currently speaking, queue the message and send after it finishes.
+    this.demoSidebar.onTaskComplete = (taskId, checkboxEl) => {
+      miniSparkle(checkboxEl);
       const message = this.demoState.completeTask(taskId);
-      if (message && this.comm.connected) {
+      if (!message || !this.comm.connected) return;
+
+      const s = this.stateMachine.state;
+      if (s === 'speaking' || s === 'thinking') {
+        // Don't interrupt — wait for current response to finish, then send
+        this.pendingTaskMessage = message;
+      } else {
         this.transitionToThinking();
         this.comm.sendMessage(message);
       }
@@ -196,6 +207,7 @@ export class DemoApp {
     this.setupMouseTracking();
     this.setupTodayCardDrag();
     this.setupFloatingWidgets();
+    this.setupCelebrations();
 
     // Hide floating UI until after login — the hud-start overlay has
     // backdrop-filter: blur(12px) which blurs everything behind it.
@@ -234,6 +246,10 @@ export class DemoApp {
           eventBus.emit('comm:mood', mood as MoodData);
         }
       });
+
+      // Reveal widgets after the login blur overlay is removed (400ms delay
+      // matches the setTimeout in DemoHud that adds .hidden to hud-start).
+      setTimeout(() => this.revealWidgets(), 420);
 
       // Send priming message with full dashboard context
       const username = this.hud.enteredUsername || 'there';
@@ -278,6 +294,11 @@ export class DemoApp {
 
     eventBus.on('audio:playbackStart', () => {
       this.audioPlaying = true;
+      // Cancel any pending finish — audio resumed
+      if (this.finishTimer) {
+        clearTimeout(this.finishTimer);
+        this.finishTimer = null;
+      }
       const s = this.stateMachine.state;
       if (s === 'thinking' || s === 'idle') {
         this.stateMachine.transition('speaking');
@@ -328,34 +349,59 @@ export class DemoApp {
     if (!this.textStreamDone) return;
     if (this.audioPlaying) return;
     if (this.ttsStreamOpen) return;
-    const s = this.stateMachine.state;
-    if (s === 'speaking' || s === 'thinking') {
-      this.stateMachine.transition('idle');
-    }
+
+    // Debounce: wait 400ms and re-check before transitioning.
+    // This prevents a brief worklet buffer gap from prematurely ending
+    // the response — if new audio arrives the flags will flip back.
+    if (this.finishTimer) return; // already scheduled
+    this.finishTimer = setTimeout(() => {
+      this.finishTimer = null;
+      // Re-check all conditions after the delay
+      if (!this.textStreamDone || this.audioPlaying || this.ttsStreamOpen) return;
+      const s = this.stateMachine.state;
+      if (s === 'speaking' || s === 'thinking') {
+        this.stateMachine.transition('idle');
+      }
+
+      // If a task was completed while the bot was speaking, send it now
+      if (this.pendingTaskMessage && this.comm.connected) {
+        const msg = this.pendingTaskMessage;
+        this.pendingTaskMessage = null;
+        this.transitionToThinking();
+        this.comm.sendMessage(msg);
+      }
+    }, 400);
   }
 
   private resetSpeakingState(): void {
     this.textStreamDone = false;
     this.audioPlaying = false;
     this.ttsStreamOpen = false;
+    this.pendingTaskMessage = null;
+    if (this.finishTimer) {
+      clearTimeout(this.finishTimer);
+      this.finishTimer = null;
+    }
   }
 
   private async onReady(): Promise<void> {
     console.log('[Demo] Session started');
 
-    // Reveal floating UI now that login overlay is gone
-    this.todayWrap.style.display = '';
-    for (const w of this.appBody.querySelectorAll<HTMLElement>('.widget-detached')) {
-      w.style.display = '';
-    }
-    // Layout widgets now that they're visible and have real dimensions
-    requestAnimationFrame(() => this.stackWidgets?.());
-
+    // Widgets stay hidden until the blur overlay is removed (see revealWidgets).
     eventBus.emit('init:progress', { pct: 20, label: 'Preparing audio\u2026' });
     await this.ttsPlayer.init();
 
     eventBus.emit('init:progress', { pct: 60, label: 'Connecting\u2026' });
     this.comm.connect();
+  }
+
+  /** Show floating UI after the login blur overlay has been removed. */
+  private revealWidgets(): void {
+    this.todayWrap.style.display = '';
+    for (const w of this.appBody.querySelectorAll<HTMLElement>('.widget-detached')) {
+      w.style.display = '';
+    }
+    requestAnimationFrame(() => this.stackWidgets?.());
   }
 
   // ── Mouse → Avatar gaze tracking ──
@@ -416,6 +462,8 @@ export class DemoApp {
     for (const w of [goalsWidget, tasksWidget]) {
       w.classList.add('widget-detached');
     }
+    goalsWidget.classList.add('widget-goals');
+    tasksWidget.classList.add('widget-tasks');
 
     // Stack goals top-right, tasks below — aligned with today card gutter
     const stackWidgets = (this.stackWidgets = () => {
@@ -494,6 +542,48 @@ export class DemoApp {
 
     // ── Resize handler — re-clamp widgets when viewport changes ──
     this.setupResizeHandler([goalsWidget, tasksWidget], stackWidgets);
+  }
+
+  // ── Celebration effects on task complete ──
+
+  private setupCelebrations(): void {
+    const goalsWidget = this.demoSidebar.goalsWidget;
+    const tasksWidget = this.demoSidebar.tasksWidget;
+    const pointsBar = this.demoSidebar.pointsBarEl;
+
+    eventBus.on('demo:taskComplete', ({ totalPoints, maxPoints }) => {
+      const allDone = totalPoints === maxPoints;
+      burstStars(this.sceneWrap, allDone);
+      flashGold([goalsWidget, tasksWidget, this.todayWrap]);
+      sparkleBar(pointsBar);
+      playCelebrateChime(this.audioManager.context, allDone);
+      this.spinAvatar();
+    });
+  }
+
+  /** Spin the avatar once on the Y axis with a joyful ease-out. */
+  private spinAvatar(): void {
+    const group = this.avatar.group;
+    const startY = group.rotation.y;
+    const targetY = startY + Math.PI * 2;
+    const duration = 800; // ms
+    const start = performance.now();
+
+    const animate = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      // Ease-out cubic — fast start, gentle landing
+      const ease = 1 - Math.pow(1 - t, 3);
+      group.rotation.y = startY + (targetY - startY) * ease;
+
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        // Reset to original to avoid accumulating rotation
+        group.rotation.y = startY;
+      }
+    };
+
+    requestAnimationFrame(animate);
   }
 
   // ── Viewport resize → re-clamp floating widgets ──

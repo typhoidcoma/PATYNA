@@ -11,11 +11,12 @@
  *   <- { type: 'state', playing: boolean }       Playback state change
  */
 
-const BUFFER_CAPACITY = 24000 * 10; // 10 seconds at 24kHz
+const BUFFER_CAPACITY = 24000 * 60; // 60 seconds at 24kHz (~5.5MB)
 const PRE_BUFFER = 24000 * 0.15;   // 150ms pre-buffer before starting playback
-// Grace period: output silence for ~500ms before declaring playback done.
-// This absorbs brief gaps between ElevenLabs audio chunks during long responses.
-const DRAIN_GRACE = Math.ceil((24000 * 0.5) / 128); // ~94 frames of silence
+// Grace period: output silence for ~1.5s before declaring playback done.
+// This absorbs gaps between ElevenLabs audio chunks during long responses.
+// ElevenLabs can pause for 500ms–1s mid-response while processing complex text.
+const DRAIN_GRACE = Math.ceil((24000 * 1.5) / 128); // ~281 frames of silence
 
 class PlaybackProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -57,8 +58,7 @@ class PlaybackProcessor extends AudioWorkletProcessor {
     this._available += toWrite;
 
     if (toWrite < data.length) {
-      // Buffer overflow — dropped samples
-      // This shouldn't happen with 10s buffer, but log it
+      this.port.postMessage({ type: 'overflow', dropped: data.length - toWrite });
     }
   }
 
