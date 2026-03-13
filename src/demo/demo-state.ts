@@ -79,7 +79,7 @@ export class DemoState {
     const allDone = progress.completed === progress.total;
 
     if (allDone) {
-      return `Done! "${task.title}" plus ${task.points} points. ALL tasks complete! ${progress.maxPoints} out of ${progress.maxPoints} points! Celebrate big! Keep response to 1 sentence.`;
+      return `Done! "${task.title}" plus ${task.points} points. ALL tasks complete! ${progress.maxPoints} out of ${progress.maxPoints} points! Celebrate big! Keep response to 1 sentence. Say numbers as words, never use slash like 10/70.`;
     }
 
     // Suggest the highest-point remaining task as the next priority
@@ -87,7 +87,7 @@ export class DemoState {
     const next = remaining.sort((a, b) => b.points - a.points)[0];
     const nextHint = next ? ` Suggest "${next.title}" worth ${next.points} points next.` : '';
 
-    return `Done! "${task.title}" plus ${task.points} points. ${progress.points} out of ${progress.maxPoints} points.${nextHint} Keep response to 1 sentence, under 20 words.`;
+    return `Done! "${task.title}" plus ${task.points} points. ${progress.points} out of ${progress.maxPoints} points.${nextHint} Keep response to 1 sentence, under 20 words. Say numbers as words, never use slash like 10/70.`;
   }
 
   /** Wrap a user's free-text message — context is already in conversation history. */
@@ -104,7 +104,7 @@ export class DemoState {
 
   /** Build the initial priming message for the LLM on connect. */
   buildPrimingMessage(username: string): string {
-    return `${this.buildContext()}\n\nUser: ${username}. Greet them briefly. Keep response to 1 or 2 sentences, under 30 words total.`;
+    return `${this.buildContext()}\n\nUser: ${username}. Greet them briefly. Keep response to 1 or 2 sentences, under 30 words total. Always say numbers as words like "ten out of seventy points", never use slash notation like "10/70".`;
   }
 
   // ── Context builder ──

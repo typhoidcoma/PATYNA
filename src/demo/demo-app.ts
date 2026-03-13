@@ -31,6 +31,8 @@ import { DemoSidebar } from '@/ui/demo-sidebar.ts';
 import { DemoState } from './demo-state.ts';
 import { makeDraggable, makeScrollDraggable } from '@/ui/draggable.ts';
 import { burstStars, miniSparkle, flashGold, sparkleBar, playCelebrateChime } from '@/fx/celebration.ts';
+import { Webcam } from '@/tracking/webcam.ts';
+import { FaceTracker } from '@/tracking/face-tracker.ts';
 import { DEFAULT_CONFIG, type PatynaConfig } from '@/types/config.ts';
 import type { MoodData } from '@/types/messages.ts';
 
@@ -49,6 +51,9 @@ export class DemoApp {
   private demoSidebar: DemoSidebar;
   private demoState: DemoState;
   private config: PatynaConfig;
+  private webcam: Webcam;
+  private faceTracker: FaceTracker;
+  private cameraInitialized = false;
   private envMesh: THREE.Mesh | null = null;
 
   // Layout refs for drag/detach
@@ -129,6 +134,10 @@ export class DemoApp {
     this.avatar = new Avatar();
     this.sceneManager.scene.add(this.avatar.group);
     this.avatarController = new AvatarController(this.avatar, config);
+
+    // Webcam + face tracking (lazy-init on camera toggle)
+    this.webcam = new Webcam();
+    this.faceTracker = new FaceTracker(this.webcam);
 
     // ── UI Components ──
 
@@ -321,6 +330,16 @@ export class DemoApp {
       }
     });
 
+    // ── Camera / face tracking ──
+
+    eventBus.on('media:cameraToggle', ({ enabled }) => {
+      if (enabled) {
+        this.initCamera();
+      } else {
+        this.faceTracker.stop();
+      }
+    });
+
     // ── Mood ──
 
     eventBus.on('comm:mood', (mood) => {
@@ -393,6 +412,27 @@ export class DemoApp {
 
     eventBus.emit('init:progress', { pct: 60, label: 'Connecting\u2026' });
     this.comm.connect();
+  }
+
+  /** Lazy-init camera + face tracking on first camera toggle. */
+  private async initCamera(): Promise<void> {
+    if (!this.cameraInitialized) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
+        });
+        console.log('[Demo] Camera access granted');
+        const camOk = await this.webcam.startWithStream(stream);
+        if (camOk) {
+          await this.faceTracker.init();
+          this.cameraInitialized = true;
+        }
+      } catch (err) {
+        console.warn('[Demo] Camera unavailable:', err);
+        return;
+      }
+    }
+    this.faceTracker.start();
   }
 
   /** Show floating UI after the login blur overlay has been removed. */

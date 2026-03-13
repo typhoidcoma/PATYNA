@@ -2,7 +2,8 @@
  * Simplified HUD for the P0 demo — nav bar, login overlay, text input panel.
  *
  * Differences from main HUD:
- *   - No mic/camera buttons (demo is text-only)
+ *   - No mic button (demo is text-only)
+ *   - Has a camera toggle for face tracking
  *   - Has a Reset button
  *   - TTS toggle still present (so we can hear the avatar)
  */
@@ -22,6 +23,8 @@ export class DemoHUD {
   private moodLabel: HTMLSpanElement;
   private ttsBtn: HTMLButtonElement;
   private ttsEnabled = true;
+  private camBtn: HTMLButtonElement;
+  private camEnabled = false;
   private responseArea: HTMLDivElement;
   private responseText: HTMLDivElement;
   private responseBuffer = '';
@@ -93,7 +96,14 @@ export class DemoHUD {
     this.moodLabel = document.createElement('span');
     this.moodLabel.className = 'hud-mood';
 
-    navCenter.append(this.ttsBtn, status, this.moodLabel);
+    this.camBtn = document.createElement('button');
+    this.camBtn.className = 'hud-toggle-btn';
+    this.camBtn.dataset.kind = 'camera';
+    this.camBtn.dataset.active = 'off';
+    this.camBtn.textContent = '\u{1F4F7}';
+    this.camBtn.title = 'Toggle camera (face tracking)';
+
+    navCenter.append(this.ttsBtn, this.camBtn, status, this.moodLabel);
 
     // Right: reset button
     const navRight = document.createElement('div');
@@ -234,6 +244,12 @@ export class DemoHUD {
       this.ttsEnabled = !this.ttsEnabled;
       this.ttsBtn.dataset.active = this.ttsEnabled ? 'on' : 'off';
       eventBus.emit('media:ttsToggle', { enabled: this.ttsEnabled });
+    });
+
+    this.camBtn.addEventListener('click', () => {
+      this.camEnabled = !this.camEnabled;
+      this.camBtn.dataset.active = this.camEnabled ? 'on' : 'off';
+      eventBus.emit('media:cameraToggle', { enabled: this.camEnabled });
     });
 
     // ── Text input ──

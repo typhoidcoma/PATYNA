@@ -24,7 +24,8 @@ function stripMarkdown(text: string): string {
     .replace(/^#{1,6}\s+/gm, '')       // # headings
     .replace(/^\s*[-*+]\s+/gm, '')     // - bullet lists
     .replace(/^\s*\d+\.\s+/gm, '')     // 1. numbered lists
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // [link](url)
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [link](url)
+    .replace(/(\d+)\/(\d+)/g, '$1 out of $2'); // 10/70 → 10 out of 70
 }
 
 export class CommManager {
