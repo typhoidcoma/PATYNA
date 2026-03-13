@@ -75,17 +75,19 @@ export class DemoState {
       maxPoints: progress.maxPoints,
     });
 
-    // Build enriched message for the LLM
+    // Build concise message for the LLM — only mention the next task, not the whole list
     const allDone = progress.completed === progress.total;
-    let announcement: string;
 
     if (allDone) {
-      announcement = `Done! "${task.title}" +${task.points}pts — ALL tasks complete! ${progress.maxPoints}/${progress.maxPoints}pts! Celebrate!`;
-    } else {
-      announcement = `Done! "${task.title}" +${task.points}pts. Now ${progress.points}/${progress.maxPoints}pts (${progress.completed}/${progress.total} tasks).`;
+      return `Done! "${task.title}" +${task.points}pts — ALL tasks complete! ${progress.maxPoints}/${progress.maxPoints}pts! Celebrate big! 1 sentence.`;
     }
 
-    return `${this.buildContext()}\n${announcement}`;
+    // Suggest the highest-point remaining task as the next priority
+    const remaining = this.tasks.filter((t) => !t.completed);
+    const next = remaining.sort((a, b) => b.points - a.points)[0];
+    const nextHint = next ? ` Suggest "${next.title}" (${next.points}pts) next.` : '';
+
+    return `Done! "${task.title}" +${task.points}pts. ${progress.points}/${progress.maxPoints}pts.${nextHint} Acknowledge briefly — 1 sentence max, under 20 words.`;
   }
 
   /** Wrap a user's free-text message — context is already in conversation history. */
