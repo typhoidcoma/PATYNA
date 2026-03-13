@@ -120,7 +120,7 @@ export class DemoState {
       .map((g) => {
         const tasks = this.getTasks(g.id);
         const done = tasks.filter((t) => t.completed).length;
-        return `${g.title} ${done}/${tasks.length}`;
+        return `${g.title} ${done} of ${tasks.length} done`;
       })
       .join(', ');
 
