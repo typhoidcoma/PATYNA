@@ -12,6 +12,21 @@ import { eventBus } from '@/core/event-bus.ts';
 import { WebSocketClient, type FrameHandler } from './websocket-client.ts';
 import { decodeMessage, encodeMessage } from './message-codec.ts';
 
+/** Strip common markdown formatting so displayed text is plain. */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '$1')   // **bold**
+    .replace(/\*(.+?)\*/g, '$1')       // *italic*
+    .replace(/__(.+?)__/g, '$1')       // __bold__
+    .replace(/_(.+?)_/g, '$1')         // _italic_
+    .replace(/~~(.+?)~~/g, '$1')       // ~~strikethrough~~
+    .replace(/`(.+?)`/g, '$1')         // `code`
+    .replace(/^#{1,6}\s+/gm, '')       // # headings
+    .replace(/^\s*[-*+]\s+/gm, '')     // - bullet lists
+    .replace(/^\s*\d+\.\s+/gm, '')     // 1. numbered lists
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // [link](url)
+}
+
 export class CommManager {
   private client: WebSocketClient;
   private config: PatynaConfig;
@@ -114,11 +129,11 @@ export class CommManager {
         break;
 
       case 'token':
-        eventBus.emit('comm:textDelta', { text: msg.content });
+        eventBus.emit('comm:textDelta', { text: stripMarkdown(msg.content) });
         break;
 
       case 'done':
-        eventBus.emit('comm:textDone', { text: msg.reply });
+        eventBus.emit('comm:textDone', { text: stripMarkdown(msg.reply) });
         break;
 
       case 'audio':
