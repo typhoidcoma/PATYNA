@@ -21,7 +21,7 @@ export class DemoHUD {
   private statusLabel: HTMLSpanElement;
   private moodLabel: HTMLSpanElement;
   private ttsBtn: HTMLButtonElement;
-  private ttsEnabled = false;
+  private ttsEnabled = true;
   private responseArea: HTMLDivElement;
   private responseText: HTMLDivElement;
   private responseBuffer = '';
@@ -73,7 +73,7 @@ export class DemoHUD {
     this.ttsBtn = document.createElement('button');
     this.ttsBtn.className = 'hud-toggle-btn';
     this.ttsBtn.dataset.kind = 'tts';
-    this.ttsBtn.dataset.active = 'off';
+    this.ttsBtn.dataset.active = 'on';
     this.ttsBtn.textContent = '\u{1F50A}';
     this.ttsBtn.title = 'Toggle voice (TTS)';
 
@@ -195,6 +195,11 @@ export class DemoHUD {
     this.panel.append(this.userText, inputRow, this.responseArea);
     panelContainer.appendChild(this.panel);
 
+    // Lock UI until login — disable panel + nav controls
+    this.panel.style.pointerEvents = 'none';
+    this.panel.style.opacity = '0.4';
+    this.nav.style.pointerEvents = 'none';
+
     // ── Ready promise (login gate) ──
     this.ready = new Promise((resolve) => {
       const submit = () => {
@@ -207,6 +212,12 @@ export class DemoHUD {
         localStorage.setItem('patyna:username', name);
         this.startOverlay.classList.add('loading');
         loginForm.style.display = 'none';
+
+        // Unlock UI
+        this.panel.style.pointerEvents = '';
+        this.panel.style.opacity = '';
+        this.nav.style.pointerEvents = '';
+
         resolve();
       };
 
@@ -270,6 +281,9 @@ export class DemoHUD {
     eventBus.on('comm:textDone', ({ text }) => this.finalizeResponse(text));
 
     eventBus.on('comm:error', ({ message }) => this.showToast(message));
+
+    // TTS on by default — notify audio system
+    eventBus.emit('media:ttsToggle', { enabled: true });
   }
 
   // ── Response methods ──

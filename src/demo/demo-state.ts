@@ -102,7 +102,7 @@ export class DemoState {
 
   /** Build the initial priming message for the LLM on connect. */
   buildPrimingMessage(username: string): string {
-    return `${this.buildContext()}\n\nUser: ${username}. Greet them, mention schedule & tasks. 2-3 sentences max.`;
+    return `${this.buildContext()}\n\nUser: ${username}. Greet them briefly. KEEP IT SHORT — 1-2 sentences only, under 30 words total.`;
   }
 
   // ── Context builder ──
