@@ -88,8 +88,8 @@ export class ElevenLabsTTS {
         this.ws!.send(JSON.stringify({
           text: ' ',
           voice_settings: {
-            stability: 0.35,
-            similarity_boost: 0.6,
+            stability: 0.5,
+            similarity_boost: 0.75,
             use_speaker_boost: true,
           },
           xi_api_key: apiKey,
