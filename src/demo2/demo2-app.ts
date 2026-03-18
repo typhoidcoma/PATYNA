@@ -299,11 +299,12 @@ export class Demo2App {
       }
     };
 
-    // Vault button — refresh memory from API then open
+    // Vault button — fetch user-scoped facts then open
     this.avatarFrame.onVaultClick = () => {
-      // Fetch latest facts, then open (don't block on failure)
-      this.aeloraClient.getMemory().then((facts) => {
-        if (facts) this.state.applyMemoryFacts(facts);
+      this.aeloraClient.getUser().then((profile) => {
+        if (profile?.facts?.length) {
+          this.state.applyUserFacts(profile.facts);
+        }
       }).finally(() => {
         this.vaultModal.open(this.state.getVaultFacts());
       });
@@ -532,10 +533,10 @@ export class Demo2App {
   private async fetchLiveData(): Promise<void> {
     const userId = this.aeloraClient.userId;
 
-    const [calendar, todos, memory, scoring, leaderboard] = await Promise.all([
+    const [calendar, todos, userProfile, scoring, leaderboard] = await Promise.all([
       this.aeloraClient.getCalendarEvents(3).catch(() => null),
       this.aeloraClient.getTodos('pending').catch(() => null),
-      this.aeloraClient.getMemory().catch(() => null),
+      this.aeloraClient.getUser().catch(() => null),
       userId ? this.aeloraClient.getScoringStats(userId).catch(() => null) : null,
       userId ? this.aeloraClient.getLeaderboard(userId, 3).catch(() => null) : null,
     ]);
@@ -554,10 +555,9 @@ export class Demo2App {
       updated = true;
     }
 
-    if (memory) {
-      this.state.applyMemoryFacts(memory);
-      const count = Object.values(memory).reduce((s, f) => s + f.length, 0);
-      console.log(`[LUMINORA] Loaded ${count} memory facts`);
+    if (userProfile?.facts?.length) {
+      this.state.applyUserFacts(userProfile.facts);
+      console.log(`[LUMINORA] Loaded ${userProfile.facts.length} user facts`);
     }
 
     if (scoring) {

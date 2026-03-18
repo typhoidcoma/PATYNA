@@ -126,6 +126,9 @@ export class Demo2State {
     const emojiMap: Record<string, string> = {
       low: '📋', medium: '📌', high: '🔥',
     };
+    const difficultyMap: Record<string, 1 | 2 | 3 | 4 | 5> = {
+      low: 1, medium: 3, high: 4,
+    };
     const todoTasks: LuminoraTask[] = pending.map(t => {
       const taskId = `todo-task-${t.uid}`;
       this._liveTaskMap.set(taskId, { todoUid: t.uid });
@@ -135,6 +138,7 @@ export class Demo2State {
         title: t.title,
         emoji: emojiMap[t.priority] ?? '📋',
         points: t.priority === 'high' ? 10 : t.priority === 'medium' ? 7 : 5,
+        difficulty: difficultyMap[t.priority] ?? 2,
         completed: t.completed,
         isTop3: false,
         timerSeconds: 0,
@@ -146,7 +150,7 @@ export class Demo2State {
     this._maxPoints = this.fixture.tasks.reduce((s, t) => s + t.points, 0);
   }
 
-  /** Overlay real memory facts into the vault. */
+  /** Overlay all memory facts (grouped by scope) into the vault. */
   applyMemoryFacts(facts: Record<string, MemoryFact[]>): void {
     const allFacts: VaultFact[] = [];
     const emojiPool = ['💡', '📝', '🧠', '🔑', '💬', '🎯', '⭐', '🌟'];
@@ -168,6 +172,20 @@ export class Demo2State {
     }
   }
 
+  /** Apply user-scoped facts from getUser() profile into the vault. */
+  applyUserFacts(facts: MemoryFact[]): void {
+    const emojiPool = ['💡', '📝', '🧠', '🔑', '💬', '🎯', '⭐', '🌟'];
+    const vaultFacts: VaultFact[] = facts.map((f, i) => ({
+      id: `user-${i}`,
+      emoji: emojiPool[i % emojiPool.length],
+      text: f.fact,
+    }));
+
+    if (vaultFacts.length > 0) {
+      this.fixture.vaultFacts = vaultFacts;
+    }
+  }
+
   /** Apply scoring stats (XP, streak). */
   applyScoringStats(stats: ScoringStats): void {
     this._scoringStats = stats;
@@ -184,6 +202,7 @@ export class Demo2State {
       title: t.title,
       emoji: ['🎯', '⚡', '🔥'][i] ?? '🎯',
       points: t.score,
+      difficulty: (t.score >= 10 ? 5 : t.score >= 7 ? 4 : 3) as 1 | 2 | 3 | 4 | 5,
       completed: false,
       isTop3: true,
       timerSeconds: 0,
