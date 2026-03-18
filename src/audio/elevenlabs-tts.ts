@@ -29,8 +29,8 @@ export class ElevenLabsTTS {
   private pendingDone = false;
   private muted = true;
 
-  // Buffer text for ~200ms before sending to get better prosody
-  private readonly FLUSH_DELAY_MS = 200;
+  // Buffer text longer before sending — larger chunks = better prosody
+  private readonly FLUSH_DELAY_MS = 500;
 
   constructor(config: PatynaConfig) {
     this.config = config.tts;
@@ -84,18 +84,21 @@ export class ElevenLabsTTS {
         console.log('[ElevenLabs] WS connected');
         eventBus.emit('audio:ttsStreamStart');
 
-        // Send BOS (beginning of stream) with settings
-        // Lower stability = more expressive; style adds emotional range
+        // Send BOS (beginning of stream) with voice settings
+        // stability: lower = more expressive/varied, higher = more consistent
+        // similarity_boost: higher = closer to original voice
+        // style: higher = more emotional range and expressiveness
         this.ws!.send(JSON.stringify({
           text: ' ',
           voice_settings: {
-            stability: 0.35,
-            similarity_boost: 0.80,
-            style: 0.15,
+            stability: 0.25,
+            similarity_boost: 0.75,
+            style: 0.45,
             use_speaker_boost: true,
           },
           generation_config: {
-            chunk_length_schedule: [120, 160, 250, 290],
+            // Larger minimum chunks = better prosody (Flash 2.5 handles these well)
+            chunk_length_schedule: [200, 260, 320, 400],
           },
           xi_api_key: apiKey,
         }));
@@ -199,8 +202,16 @@ export class ElevenLabsTTS {
     this.scheduleFlush();
   }
 
-  /** Schedule a buffered flush — waits a short window to batch tokens. */
+  /** Schedule a buffered flush — sends on sentence boundaries or after timeout. */
   private scheduleFlush(): void {
+    // Flush immediately at sentence boundaries if we have enough text
+    // This gives ElevenLabs full sentences for much better prosody
+    if (this.textBuffer.length >= 40 && /[.!?]\s*$/.test(this.textBuffer)) {
+      if (this.flushTimer) { clearTimeout(this.flushTimer); this.flushTimer = null; }
+      this.flushTextBuffer();
+      return;
+    }
+
     if (this.flushTimer) return;
     this.flushTimer = setTimeout(() => {
       this.flushTimer = null;
