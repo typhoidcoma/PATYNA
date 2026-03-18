@@ -212,8 +212,11 @@ export class ElevenLabsTTS {
   private flushTextBuffer(): void {
     if (!this.ws || this.state !== 'streaming' || !this.textBuffer) return;
 
-    console.log(`[ElevenLabs] Sent ${this.textBuffer.length} chars`);
-    this.ws.send(JSON.stringify({ text: this.textBuffer }));
+    const cleaned = cleanForTTS(this.textBuffer);
+    if (!cleaned) { this.textBuffer = ''; return; }
+
+    console.log(`[ElevenLabs] Sent ${cleaned.length} chars`);
+    this.ws.send(JSON.stringify({ text: cleaned }));
     this.textBuffer = '';
   }
 
@@ -233,8 +236,11 @@ export class ElevenLabsTTS {
 
     // Flush remaining text with flush flag for immediate generation
     if (this.ws && this.state === 'streaming' && this.textBuffer) {
-      console.log(`[ElevenLabs] Final flush: ${this.textBuffer.length} chars`);
-      this.ws.send(JSON.stringify({ text: this.textBuffer, flush: true }));
+      const cleaned = cleanForTTS(this.textBuffer);
+      if (cleaned) {
+        console.log(`[ElevenLabs] Final flush: ${cleaned.length} chars`);
+        this.ws.send(JSON.stringify({ text: cleaned, flush: true }));
+      }
       this.textBuffer = '';
     }
     this.sendEOS();
@@ -271,4 +277,31 @@ export class ElevenLabsTTS {
   destroy(): void {
     this.close();
   }
+}
+
+/**
+ * Clean text for natural TTS output.
+ * Strips emojis, normalizes punctuation, and converts
+ * patterns that cause ElevenLabs to stutter or break.
+ */
+function cleanForTTS(text: string): string {
+  return text
+    // Strip emoji (Unicode ranges for common emoji blocks)
+    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1FA00}-\u{1FAFF}\u{200D}\u{20E3}]/gu, '')
+    // Expand common abbreviations
+    .replace(/\bpts\b/gi, 'points')
+    .replace(/\bhrs?\b/gi, 'hours')
+    .replace(/\bmin\b/gi, 'minutes')
+    // Convert slashes in fractions to "out of" (e.g. 10/70)
+    .replace(/(\d+)\s*\/\s*(\d+)/g, '$1 out of $2')
+    // Normalize dashes to commas for natural pauses
+    .replace(/\s*[—–]\s*/g, ', ')
+    // Remove asterisks and underscores (leftover markdown)
+    .replace(/[*_~`]/g, '')
+    // Remove brackets and parenthetical technical notation
+    .replace(/\[.*?\]/g, '')
+    // Clean up multiple spaces
+    .replace(/\s{2,}/g, ' ')
+    // Clean up leading/trailing whitespace
+    .trim();
 }
