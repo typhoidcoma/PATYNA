@@ -87,11 +87,6 @@ interface TodoResponse {
   count: number;
 }
 
-interface LinearResponse {
-  issues: LinearIssue[];
-  count: number;
-}
-
 export interface TodoItem {
   uid: string;
   title: string;

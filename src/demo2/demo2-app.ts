@@ -516,7 +516,7 @@ export class Demo2App {
     this.toastEl.textContent = message;
     this.toastEl.classList.add('lum-toast--visible');
     if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => {
+    this.toastTimer = setTimeout(() => {
       this.toastEl?.classList.remove('lum-toast--visible');
       this.toastTimer = null;
     }, 3200);
