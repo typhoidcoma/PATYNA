@@ -237,6 +237,7 @@ export class Demo2State {
     if (!task || task.completed) return null;
 
     task.completed = true;
+    task.isTop3 = false;
     const progress = this.getProgress();
 
     eventBus.emit('demo:taskComplete', {

@@ -61,6 +61,8 @@ export class Demo2App {
   private weeklyRhythmModal: WeeklyRhythmModal;
 
   private loginOverlay: HTMLDivElement | null = null;
+  private toastEl: HTMLDivElement | null = null;
+  private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private enteredUsername = '';
   private envMesh: THREE.Mesh | null = null;
   private cleanupFns: (() => void)[] = [];
@@ -133,6 +135,12 @@ export class Demo2App {
 
     dashboard.append(this.briefing.el, this.avatarFrame.el, this.goalsTasksPanel.el);
     container.appendChild(dashboard);
+
+    this.toastEl = document.createElement('div');
+    this.toastEl.className = 'lum-toast';
+    this.toastEl.setAttribute('role', 'status');
+    this.toastEl.setAttribute('aria-live', 'polite');
+    container.appendChild(this.toastEl);
 
     // Bottom: Journal
     this.journalBar = new JournalBar();
@@ -256,6 +264,10 @@ export class Demo2App {
     this.goalsTasksPanel.onTaskStart = (_taskId) => {
       if (this.isBusy()) return;
       // Timer is managed by the panel itself
+    };
+
+    this.goalsTasksPanel.onMaxFavoritesReached = () => {
+      this.showToast('You already have max favorite tasks');
     };
 
     // Task Finish (TOP 3) → open completion modal
@@ -499,6 +511,17 @@ export class Demo2App {
     return s === 'thinking' || s === 'speaking';
   }
 
+  private showToast(message: string): void {
+    if (!this.toastEl) return;
+    this.toastEl.textContent = message;
+    this.toastEl.classList.add('lum-toast--visible');
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => {
+      this.toastEl?.classList.remove('lum-toast--visible');
+      this.toastTimer = null;
+    }, 3200);
+  }
+
   // ── API: report task completion ──
 
   private reportTaskCompletion(taskId: string): void {
@@ -734,6 +757,10 @@ export class Demo2App {
   // ── Cleanup ──
 
   async destroy(): Promise<void> {
+    if (this.toastTimer) {
+      clearTimeout(this.toastTimer);
+      this.toastTimer = null;
+    }
     if (this.vaultSyncTimer) {
       clearInterval(this.vaultSyncTimer);
       this.vaultSyncTimer = null;

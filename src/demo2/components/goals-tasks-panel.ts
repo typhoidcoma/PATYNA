@@ -4,6 +4,9 @@
 
 import type { LuminoraGoal, LuminoraTask } from '../demo2-types.ts';
 
+const MAX_TOP_FAVORITES = 3;
+const TOP3_SLOT_COUNT = 3;
+
 export class GoalsTasksPanel {
   readonly el: HTMLDivElement;
   private top3Container!: HTMLDivElement;
@@ -19,6 +22,7 @@ export class GoalsTasksPanel {
   onTaskStart?: (taskId: string) => void;
   onTaskFinish?: (taskId: string) => void;
   onAllTaskClick?: (taskId: string) => void;
+  onMaxFavoritesReached?: () => void;
 
   constructor() {
     this.el = document.createElement('div');
@@ -117,10 +121,60 @@ export class GoalsTasksPanel {
     const task = this.tasks.find(t => t.id === taskId);
     if (task) {
       task.completed = true;
+      task.isTop3 = false;
       if (taskId === this.activeTimerId) this.stopTimer();
       this.renderTop3();
       this.renderAllTasks();
     }
+  }
+
+  private topFavoriteCount(): number {
+    return this.tasks.filter(t => t.isTop3).length;
+  }
+
+  /** Star toggle for TOP 3 (favorited) — checked, click to remove from favorites. */
+  private createTop3StarButton(task: LuminoraTask): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'lum-task-star lum-task-star--active lum-top3-star';
+    btn.setAttribute('aria-label', 'Remove from top tasks');
+    btn.setAttribute('aria-pressed', 'true');
+    btn.innerHTML = this.starSvg();
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this._busy) return;
+      if (task.id === this.activeTimerId) this.stopTimer();
+      task.isTop3 = false;
+      this.renderTop3();
+      this.renderAllTasks();
+    });
+    return btn;
+  }
+
+  /** Star button for ALL TASKS — outline; click to favorite. */
+  private createAllTasksStarButton(task: LuminoraTask): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'lum-task-star lum-all-task-star';
+    btn.setAttribute('aria-label', 'Add to top tasks');
+    btn.setAttribute('aria-pressed', 'false');
+    btn.innerHTML = this.starSvg();
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this._busy) return;
+      if (this.topFavoriteCount() >= MAX_TOP_FAVORITES) {
+        this.onMaxFavoritesReached?.();
+        return;
+      }
+      task.isTop3 = true;
+      this.renderTop3();
+      this.renderAllTasks();
+    });
+    return btn;
+  }
+
+  private starSvg(): string {
+    return `<svg class="lum-task-star-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>`;
   }
 
   private renderTop3(): void {
@@ -128,10 +182,23 @@ export class GoalsTasksPanel {
     this.top3Container.innerHTML = '';
 
     const top3 = this.tasks.filter(t => t.isTop3);
-    for (const task of top3) {
+
+    for (let slot = 0; slot < TOP3_SLOT_COUNT; slot++) {
+      const task = top3[slot];
+      if (!task) {
+        const empty = document.createElement('div');
+        empty.className = 'lum-top3-slot-empty';
+        empty.innerHTML = '<span class="lum-top3-slot-empty-hint">Add from favorites</span>';
+        this.top3Container.appendChild(empty);
+        continue;
+      }
+
       const card = document.createElement('div');
       card.className = 'lum-top3-card';
       if (task.completed) card.classList.add('completed');
+
+      const starBtn = this.createTop3StarButton(task);
+      card.appendChild(starBtn);
 
       const info = document.createElement('div');
       info.className = 'lum-top3-info';
@@ -213,6 +280,8 @@ export class GoalsTasksPanel {
       item.className = 'lum-all-task-item';
       if (task.completed) item.classList.add('completed');
 
+      const starBtn = this.createAllTasksStarButton(task);
+
       const emoji = document.createElement('span');
       emoji.className = 'lum-all-task-emoji';
       emoji.textContent = task.emoji;
@@ -235,7 +304,7 @@ export class GoalsTasksPanel {
       fill.style.borderRadius = '3px';
       bar.appendChild(fill);
 
-      item.append(emoji, title, bar);
+      item.append(starBtn, emoji, title, bar);
 
       if (!task.completed) {
         item.addEventListener('click', () => this.onAllTaskClick?.(task.id));
