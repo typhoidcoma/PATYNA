@@ -519,8 +519,83 @@ body {
   transition: opacity 0.3s ease;
 }
 
-.lum-top3-card:last-child {
+.lum-top3-list > :last-child {
   border-bottom: none;
+}
+
+/* Empty TOP 3 slot */
+.lum-top3-slot-empty {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 8px 12px 8px 44px;
+  border-radius: 8px;
+  border: 1px dashed rgba(249, 77, 138, 0.28);
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.lum-top3-slot-empty-hint {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+/* Star favorite (TOP 3 + ALL TASKS) */
+.lum-task-star {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition:
+    color 0.15s ease,
+    transform 0.1s ease,
+    background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lum-task-star:hover {
+  background: rgba(249, 77, 138, 0.08);
+  color: var(--lum-pink-deep);
+}
+
+.lum-task-star:active {
+  transform: scale(0.92);
+}
+
+.lum-task-star-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.lum-all-task-star .lum-task-star-icon {
+  opacity: 0.4;
+}
+
+.lum-all-task-star:hover .lum-task-star-icon {
+  opacity: 0.85;
+}
+
+.lum-task-star--active {
+  color: var(--lum-pink);
+}
+
+.lum-task-star--active .lum-task-star-icon {
+  opacity: 1;
+  filter: drop-shadow(0 1px 2px rgba(249, 77, 138, 0.35));
+}
+
+.lum-top3-star {
+  align-self: center;
 }
 
 .lum-top3-card.completed {
@@ -707,6 +782,35 @@ body {
 .lum-all-task-bar-fill {
   height: 100%;
   transition: width var(--duration-normal) ease;
+}
+
+/* Toast — max favorites & messages */
+.lum-toast {
+  position: fixed;
+  top: calc(var(--lum-nav-h, 52px) + 12px);
+  left: 50%;
+  z-index: 9999;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 12px 20px;
+  font-size: 0.85rem;
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+  color: var(--lum-pink-deep);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(249, 77, 138, 0.35);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 8px 28px rgba(249, 77, 138, 0.18);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%) translateY(-8px);
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+
+.lum-toast.lum-toast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 /* ── Journal Bar ── */
