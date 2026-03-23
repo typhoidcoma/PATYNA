@@ -59,6 +59,30 @@ body {
   gap: 10px;
 }
 
+.lum-nav-feedback {
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--lum-pink-deep);
+  font-family: var(--font-family);
+  font-size: 0.78rem;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  box-shadow: 0 4px 14px rgba(249, 77, 138, 0.1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lum-nav-feedback:hover {
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 6px 18px rgba(249, 77, 138, 0.16);
+}
+
+.lum-nav-feedback:active {
+  transform: scale(0.96);
+}
+
 .lum-nav-username {
   font-size: 0.85rem;
   font-weight: var(--font-weight-medium);
@@ -1043,6 +1067,174 @@ body {
   transform: scale(0.97);
 }
 
+/* ── Feedback Panel ── */
+
+.lum-feedback {
+  padding: 28px 32px;
+  min-width: 360px;
+  max-width: 460px;
+  width: min(460px, calc(100vw - 32px));
+}
+
+.lum-feedback-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.lum-feedback-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.lum-feedback-subtitle {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.lum-feedback-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+  transition: color 0.15s ease, transform 0.1s ease;
+}
+
+.lum-feedback-close:hover {
+  color: var(--lum-pink-deep);
+}
+
+.lum-feedback-close:active {
+  transform: scale(0.9);
+}
+
+.lum-feedback-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.lum-feedback-select,
+.lum-feedback-textarea {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.84);
+  font-family: var(--font-family);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.lum-feedback-select {
+  height: 44px;
+  padding: 0 14px;
+  margin-bottom: 18px;
+  font-size: 0.9rem;
+}
+
+.lum-feedback-textarea {
+  min-height: 132px;
+  padding: 12px 14px;
+  resize: vertical;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.lum-feedback-select:focus,
+.lum-feedback-textarea:focus {
+  border-color: rgba(249, 77, 138, 0.6);
+  box-shadow: 0 0 0 3px rgba(249, 77, 138, 0.12);
+}
+
+.lum-feedback-counter-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+  margin-bottom: 18px;
+}
+
+.lum-feedback-counter {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+}
+
+.lum-feedback-helper {
+  margin-top: -4px;
+  margin-bottom: 20px;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+}
+
+.lum-feedback-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  margin-bottom: 20px;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+}
+
+.lum-feedback-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.lum-feedback-cancel,
+.lum-feedback-submit {
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 11px 18px;
+  font-family: var(--font-family);
+  font-size: 0.88rem;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: transform 0.1s ease, filter 0.15s ease, box-shadow 0.15s ease;
+}
+
+.lum-feedback-cancel {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-primary);
+}
+
+.lum-feedback-submit {
+  min-width: 132px;
+  background: linear-gradient(135deg, var(--lum-pink), var(--lum-pink-deep));
+  color: white;
+  box-shadow: 0 3px 12px rgba(249, 77, 138, 0.2);
+}
+
+.lum-feedback-cancel:hover,
+.lum-feedback-submit:hover:not(:disabled) {
+  filter: brightness(1.03);
+}
+
+.lum-feedback-cancel:active,
+.lum-feedback-submit:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.lum-feedback-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 /* ── Vault Modal ── */
 
 .lum-vault {
@@ -1529,5 +1721,18 @@ body {
   .lum-avatar-ring {
     width: min(280px, 40vh);
     height: min(280px, 40vh);
+  }
+
+  .lum-nav-user {
+    gap: 8px;
+  }
+
+  .lum-feedback {
+    min-width: 0;
+    padding: 24px 20px;
+  }
+
+  .lum-nav-feedback {
+    padding-inline: 12px;
   }
 }

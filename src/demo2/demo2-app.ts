@@ -35,6 +35,7 @@ import { ModalManager } from './components/modal-manager.ts';
 import { TaskCompleteModal } from './components/task-complete-modal.ts';
 import { VaultModal } from './components/vault-modal.ts';
 import { WeeklyRhythmModal } from './components/weekly-rhythm-modal.ts';
+import { FeedbackPanel, type FeedbackEntry } from './components/feedback-panel.ts';
 
 export class Demo2App {
   private sceneManager: SceneManager;
@@ -59,6 +60,7 @@ export class Demo2App {
   private taskCompleteModal: TaskCompleteModal;
   private vaultModal: VaultModal;
   private weeklyRhythmModal: WeeklyRhythmModal;
+  private feedbackPanel: FeedbackPanel;
 
   private loginOverlay: HTMLDivElement | null = null;
   private toastEl: HTMLDivElement | null = null;
@@ -171,6 +173,7 @@ export class Demo2App {
     this.taskCompleteModal = new TaskCompleteModal(this.modalManager);
     this.vaultModal = new VaultModal(this.modalManager);
     this.weeklyRhythmModal = new WeeklyRhythmModal(this.modalManager);
+    this.feedbackPanel = new FeedbackPanel(this.modalManager);
 
     // ── Wire callbacks ──
 
@@ -334,6 +337,15 @@ export class Demo2App {
       }).finally(() => {
         this.vaultModal.open(this.state.getVaultFacts());
       });
+    };
+
+    this.navBar.onFeedbackClick = () => {
+      this.feedbackPanel.open();
+    };
+
+    this.feedbackPanel.onSubmit = (data) => {
+      this.saveFeedback(data);
+      this.showToast(`Feedback saved${data.tag ? ` (${data.tag})` : ''}`);
     };
 
     // Briefing due-today toggle → update todo via API
@@ -520,6 +532,28 @@ export class Demo2App {
       this.toastEl?.classList.remove('lum-toast--visible');
       this.toastTimer = null;
     }, 3200);
+  }
+
+  private saveFeedback(data: FeedbackEntry): void {
+    const entry = {
+      ...data,
+      username: this.enteredUsername || this.state.username,
+      createdAt: new Date().toISOString(),
+    };
+
+    const storageKey = 'patyna:demo2-feedback';
+
+    try {
+      const current = localStorage.getItem(storageKey);
+      const items = current ? JSON.parse(current) : [];
+      const next = Array.isArray(items) ? items : [];
+      next.unshift(entry);
+      localStorage.setItem(storageKey, JSON.stringify(next.slice(0, 50)));
+    } catch (err) {
+      console.warn('[LUMINORA] Failed to persist feedback locally:', err);
+    }
+
+    console.log('[LUMINORA] Feedback captured:', entry);
   }
 
   // ── API: report task completion ──

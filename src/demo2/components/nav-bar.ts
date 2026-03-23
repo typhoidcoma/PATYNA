@@ -6,6 +6,7 @@ import { eventBus } from '@/core/event-bus.ts';
 
 export class NavBar {
   readonly el: HTMLDivElement;
+  onFeedbackClick?: () => void;
   private ttsBtn: HTMLButtonElement;
   private ttsEnabled = true;
   private nameEl: HTMLSpanElement;
@@ -33,6 +34,12 @@ export class NavBar {
       eventBus.emit('media:ttsToggle', { enabled: this.ttsEnabled });
     });
 
+    const feedbackBtn = document.createElement('button');
+    feedbackBtn.className = 'lum-nav-feedback';
+    feedbackBtn.type = 'button';
+    feedbackBtn.textContent = 'Feedback';
+    feedbackBtn.addEventListener('click', () => this.onFeedbackClick?.());
+
     this.nameEl = document.createElement('span');
     this.nameEl.className = 'lum-nav-username';
     this.nameEl.textContent = username;
@@ -41,7 +48,7 @@ export class NavBar {
     this.avatarEl.className = 'lum-nav-avatar';
     this.avatarEl.textContent = username.charAt(0).toUpperCase();
 
-    user.append(this.ttsBtn, this.nameEl, this.avatarEl);
+    user.append(this.ttsBtn, feedbackBtn, this.nameEl, this.avatarEl);
     this.el.append(logo, user);
   }
 
