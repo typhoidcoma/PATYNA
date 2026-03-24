@@ -260,42 +260,14 @@ body {
 .lum-due-item {
   display: flex;
   align-items: center;
-  gap: 10px;
   font-size: 0.82rem;
   color: var(--text-primary);
-  cursor: pointer;
   transition: opacity 0.2s ease;
 }
 
 .lum-due-item.completed {
   text-decoration: line-through;
   color: var(--text-secondary);
-}
-
-.lum-due-check {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  border: 2px solid rgba(0,0,0,0.2);
-  background: transparent;
-  cursor: pointer;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  font-size: 0.65rem;
-  color: white;
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
-}
-
-.lum-due-check:active {
-  transform: scale(0.85);
-}
-
-.lum-due-check.checked {
-  background: var(--lum-green);
-  border-color: var(--lum-green);
 }
 
 /* ── Speech Bubble ── */

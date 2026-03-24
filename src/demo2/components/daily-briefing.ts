@@ -93,26 +93,10 @@ export class DailyBriefing {
       row.className = 'lum-due-item';
       if (item.completed) row.classList.add('completed');
 
-      const check = document.createElement('button');
-      check.className = 'lum-due-check';
-      if (item.completed) {
-        check.classList.add('checked');
-        check.textContent = '✓';
-      }
-
       const label = document.createElement('span');
       label.textContent = item.title;
 
-      check.addEventListener('click', () => {
-        if (item.completed) return;
-        item.completed = true;
-        check.classList.add('checked');
-        check.textContent = '✓';
-        row.classList.add('completed');
-        this.onDueTodayToggle?.(item.id, true);
-      });
-
-      row.append(check, label);
+      row.append(label);
       dueList.appendChild(row);
       this.dueItems.set(item.id, row);
     }
@@ -126,11 +110,6 @@ export class DailyBriefing {
       if (!label || row.classList.contains('completed')) continue;
       if (label.textContent === title) {
         row.classList.add('completed');
-        const check = row.querySelector('.lum-due-check');
-        if (check) {
-          check.classList.add('checked');
-          check.textContent = '✓';
-        }
         break;
       }
     }

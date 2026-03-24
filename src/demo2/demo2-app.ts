@@ -88,6 +88,16 @@ export class Demo2App {
   private readonly MOUSE_TAKEOVER_MS = 400;
   private readonly MOUSE_RELEASE_MS = 800;
 
+  // Panel-gated gaze
+  private panelIdleTimer = 0;
+  private pointerOnPanel = false;
+  private panelGazeLocked = false;
+  private readonly PANEL_IDLE_MS = 1500;
+  private static readonly UI_PANEL_SELECTOR =
+    ".lum-nav, .lum-briefing, .lum-right, .lum-journal, " +
+    ".lum-speech-bubble, .lum-vault-btn, .lum-backdrop, " +
+    ".lum-login-overlay, .lum-toast";
+
   constructor(container: HTMLElement, config: PatynaConfig = DEFAULT_CONFIG) {
     this.config = config;
     this.state = new Demo2State();
@@ -776,6 +786,11 @@ export class Demo2App {
 
   // ── Mouse tracking ──
 
+  private isPointerOnUiPanel(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    return target.closest(Demo2App.UI_PANEL_SELECTOR) !== null;
+  }
+
   private setupMouseTracking(): void {
     const sceneWrap = this.avatarFrame.sceneContainer;
 
@@ -791,8 +806,35 @@ export class Demo2App {
       eventBus.emit("face:position", { x, y, z: 0 });
     };
 
+    const returnToNeutral = () => {
+      if (!this.cameraActive) {
+        eventBus.emit("face:lost");
+      }
+    };
+
     const onMouseMove = (e: MouseEvent) => {
       clearTimeout(this.mouseIdleTimer);
+      clearTimeout(this.panelIdleTimer);
+
+      const onPanel = this.isPointerOnUiPanel(e.target);
+
+      if (!onPanel) {
+        if (this.pointerOnPanel) {
+          this.pointerOnPanel = false;
+          this.panelGazeLocked = false;
+          returnToNeutral();
+        }
+        return;
+      }
+
+      this.pointerOnPanel = true;
+
+      if (this.panelGazeLocked) return;
+
+      this.panelIdleTimer = window.setTimeout(() => {
+        this.panelGazeLocked = true;
+        returnToNeutral();
+      }, this.PANEL_IDLE_MS);
 
       if (!this.cameraActive) {
         emitMouseGaze(e);
@@ -820,10 +862,11 @@ export class Demo2App {
     const onMouseLeave = () => {
       this.mouseOverride = false;
       this.mouseMoveStart = 0;
+      this.pointerOnPanel = false;
+      this.panelGazeLocked = false;
       clearTimeout(this.mouseIdleTimer);
-      if (!this.cameraActive) {
-        eventBus.emit("face:lost");
-      }
+      clearTimeout(this.panelIdleTimer);
+      returnToNeutral();
     };
 
     document.addEventListener("mousemove", onMouseMove);
@@ -832,6 +875,7 @@ export class Demo2App {
     this.cleanupFns.push(() => {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseleave", onMouseLeave);
+      clearTimeout(this.panelIdleTimer);
     });
   }
 
