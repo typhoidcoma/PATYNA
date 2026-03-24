@@ -41,6 +41,7 @@ cp .env.example .env
 | `VITE_USER_ID` | User ID for the Aelora session |
 | `VITE_USERNAME` | Display name shown in the UI |
 | `VITE_SESSION_ID` | Session identifier (defaults to `patyna-web`) |
+| `VITE_FEEDBACK_URL` | Direct feedback endpoint (e.g. Supabase Edge Function URL) |
 
 ### Run
 

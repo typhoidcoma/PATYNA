@@ -40,6 +40,7 @@ export interface PatynaConfig {
   };
   api: {
     baseUrl?: string;
+    feedbackUrl?: string;
     fetchMemoryOnConnect: boolean;
   };
 }
@@ -82,6 +83,7 @@ export const DEFAULT_CONFIG: PatynaConfig = {
     notifyBackend: true,
   },
   api: {
+    feedbackUrl: import.meta.env.VITE_FEEDBACK_URL,
     fetchMemoryOnConnect: true,
   },
 };

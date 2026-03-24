@@ -9,33 +9,34 @@
  *   - Modals: TaskComplete, Vault, WeeklyRhythm
  */
 
-import * as THREE from 'three';
-import { SceneManager } from '@/scene/scene-manager.ts';
-import { Avatar } from '@/scene/avatar.ts';
-import { AvatarController } from '@/scene/avatar-controller.ts';
-import { updateEnvironment } from '@/scene/environment.ts';
-import { StateMachine } from '@/core/state-machine.ts';
-import { eventBus } from '@/core/event-bus.ts';
-import { CommManager } from '@/comm/protocol.ts';
-import { AudioManager } from '@/audio/audio-manager.ts';
-import { TTSPlayer } from '@/audio/tts-player.ts';
-import { ElevenLabsTTS } from '@/audio/elevenlabs-tts.ts';
-import { AeloraClient } from '@/api/aelora-client.ts';
-import { burstStars, flashGold, playCelebrateChime } from '@/fx/celebration.ts';
-import { DEFAULT_CONFIG, type PatynaConfig } from '@/types/config.ts';
-import type { MoodData } from '@/types/messages.ts';
+import * as THREE from "three";
+import { SceneManager } from "@/scene/scene-manager.ts";
+import { Avatar } from "@/scene/avatar.ts";
+import { AvatarController } from "@/scene/avatar-controller.ts";
+import { updateEnvironment } from "@/scene/environment.ts";
+import { StateMachine } from "@/core/state-machine.ts";
+import { eventBus } from "@/core/event-bus.ts";
+import { CommManager } from "@/comm/protocol.ts";
+import { AudioManager } from "@/audio/audio-manager.ts";
+import { TTSPlayer } from "@/audio/tts-player.ts";
+import { ElevenLabsTTS } from "@/audio/elevenlabs-tts.ts";
+import { AeloraClient } from "@/api/aelora-client.ts";
+import { FeedbackClient } from "@/api/feedback-client.ts";
+import { burstStars, flashGold, playCelebrateChime } from "@/fx/celebration.ts";
+import { DEFAULT_CONFIG, type PatynaConfig } from "@/types/config.ts";
+import type { MoodData } from "@/types/messages.ts";
 
-import { Demo2State } from './demo2-state.ts';
-import { NavBar } from './components/nav-bar.ts';
-import { DailyBriefing } from './components/daily-briefing.ts';
-import { AvatarFrame } from './components/avatar-frame.ts';
-import { GoalsTasksPanel } from './components/goals-tasks-panel.ts';
-import { JournalBar } from './components/journal-bar.ts';
-import { ModalManager } from './components/modal-manager.ts';
-import { TaskCompleteModal } from './components/task-complete-modal.ts';
-import { VaultModal } from './components/vault-modal.ts';
-import { WeeklyRhythmModal } from './components/weekly-rhythm-modal.ts';
-import { FeedbackPanel, type FeedbackEntry } from './components/feedback-panel.ts';
+import { Demo2State } from "./demo2-state.ts";
+import { NavBar } from "./components/nav-bar.ts";
+import { DailyBriefing } from "./components/daily-briefing.ts";
+import { AvatarFrame } from "./components/avatar-frame.ts";
+import { GoalsTasksPanel } from "./components/goals-tasks-panel.ts";
+import { JournalBar } from "./components/journal-bar.ts";
+import { ModalManager } from "./components/modal-manager.ts";
+import { TaskCompleteModal } from "./components/task-complete-modal.ts";
+import { VaultModal } from "./components/vault-modal.ts";
+import { WeeklyRhythmModal } from "./components/weekly-rhythm-modal.ts";
+import { FeedbackPanel } from "./components/feedback-panel.ts";
 
 export class Demo2App {
   private sceneManager: SceneManager;
@@ -47,6 +48,7 @@ export class Demo2App {
   private ttsPlayer: TTSPlayer;
   private elevenLabs: ElevenLabsTTS;
   private aeloraClient: AeloraClient;
+  private feedbackClient: FeedbackClient;
   private state: Demo2State;
   private config: PatynaConfig;
 
@@ -65,7 +67,7 @@ export class Demo2App {
   private loginOverlay: HTMLDivElement | null = null;
   private toastEl: HTMLDivElement | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
-  private enteredUsername = '';
+  private enteredUsername = "";
   private envMesh: THREE.Mesh | null = null;
   private cleanupFns: (() => void)[] = [];
   private vaultSyncTimer: ReturnType<typeof setInterval> | null = null;
@@ -86,10 +88,7 @@ export class Demo2App {
   private readonly MOUSE_TAKEOVER_MS = 400;
   private readonly MOUSE_RELEASE_MS = 800;
 
-  constructor(
-    container: HTMLElement,
-    config: PatynaConfig = DEFAULT_CONFIG,
-  ) {
+  constructor(container: HTMLElement, config: PatynaConfig = DEFAULT_CONFIG) {
     this.config = config;
     this.state = new Demo2State();
 
@@ -108,6 +107,7 @@ export class Demo2App {
       userId: config.websocket.userId,
       username: config.websocket.username,
     });
+    this.feedbackClient = new FeedbackClient(config.api.feedbackUrl);
 
     // ── UI Layout ──
 
@@ -116,8 +116,8 @@ export class Demo2App {
     container.appendChild(this.navBar.el);
 
     // Dashboard grid
-    const dashboard = document.createElement('div');
-    dashboard.className = 'lum-dashboard';
+    const dashboard = document.createElement("div");
+    dashboard.className = "lum-dashboard";
 
     // Left: Briefing
     this.briefing = new DailyBriefing();
@@ -135,13 +135,17 @@ export class Demo2App {
       this.state.pointsYesterday,
     );
 
-    dashboard.append(this.briefing.el, this.avatarFrame.el, this.goalsTasksPanel.el);
+    dashboard.append(
+      this.briefing.el,
+      this.avatarFrame.el,
+      this.goalsTasksPanel.el,
+    );
     container.appendChild(dashboard);
 
-    this.toastEl = document.createElement('div');
-    this.toastEl.className = 'lum-toast';
-    this.toastEl.setAttribute('role', 'status');
-    this.toastEl.setAttribute('aria-live', 'polite');
+    this.toastEl = document.createElement("div");
+    this.toastEl.className = "lum-toast";
+    this.toastEl.setAttribute("role", "status");
+    this.toastEl.setAttribute("aria-live", "polite");
     container.appendChild(this.toastEl);
 
     // Bottom: Journal
@@ -150,7 +154,10 @@ export class Demo2App {
 
     // ── 3D Scene ──
 
-    this.sceneManager = new SceneManager(this.avatarFrame.sceneContainer, config);
+    this.sceneManager = new SceneManager(
+      this.avatarFrame.sceneContainer,
+      config,
+    );
 
     // Find environment mesh
     this.sceneManager.scene.traverse((child) => {
@@ -198,27 +205,27 @@ export class Demo2App {
   /** Show login overlay, resolve when user submits a name. */
   private showLogin(container: HTMLElement): Promise<void> {
     return new Promise((resolve) => {
-      this.loginOverlay = document.createElement('div');
-      this.loginOverlay.className = 'lum-login-overlay';
+      this.loginOverlay = document.createElement("div");
+      this.loginOverlay.className = "lum-login-overlay";
 
-      const form = document.createElement('div');
-      form.className = 'lum-login-form';
+      const form = document.createElement("div");
+      form.className = "lum-login-form";
 
-      const heading = document.createElement('div');
-      heading.className = 'lum-login-heading';
-      heading.textContent = 'Welcome to LUMINORA';
+      const heading = document.createElement("div");
+      heading.className = "lum-login-heading";
+      heading.textContent = "Welcome to LUMINORA";
 
-      const input = document.createElement('input');
-      input.className = 'lum-login-input';
-      input.type = 'text';
-      input.placeholder = 'Your name…';
-      input.autocomplete = 'name';
+      const input = document.createElement("input");
+      input.className = "lum-login-input";
+      input.type = "text";
+      input.placeholder = "Your name…";
+      input.autocomplete = "name";
       input.maxLength = 40;
-      input.value = localStorage.getItem('patyna:username') ?? '';
+      input.value = localStorage.getItem("patyna:username") ?? "";
 
-      const btn = document.createElement('button');
-      btn.className = 'lum-login-btn';
-      btn.textContent = 'Begin';
+      const btn = document.createElement("button");
+      btn.className = "lum-login-btn";
+      btn.textContent = "Begin";
 
       form.append(heading, input, btn);
       this.loginOverlay.appendChild(form);
@@ -229,13 +236,16 @@ export class Demo2App {
 
       const submit = () => {
         const name = input.value.trim();
-        if (!name) { input.focus(); return; }
+        if (!name) {
+          input.focus();
+          return;
+        }
 
         this.enteredUsername = name;
-        localStorage.setItem('patyna:username', name);
+        localStorage.setItem("patyna:username", name);
 
         // Fade out overlay
-        this.loginOverlay!.classList.add('lum-login-hiding');
+        this.loginOverlay!.classList.add("lum-login-hiding");
         setTimeout(() => {
           this.loginOverlay?.remove();
           this.loginOverlay = null;
@@ -247,9 +257,9 @@ export class Demo2App {
         resolve();
       };
 
-      btn.addEventListener('click', submit);
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') submit();
+      btn.addEventListener("click", submit);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") submit();
       });
     });
   }
@@ -270,13 +280,13 @@ export class Demo2App {
     };
 
     this.goalsTasksPanel.onMaxFavoritesReached = () => {
-      this.showToast('You already have max favorite tasks');
+      this.showToast("You already have max favorite tasks");
     };
 
     // Task Finish (TOP 3) → open completion modal
     this.goalsTasksPanel.onTaskFinish = (taskId) => {
       if (this.isBusy()) return;
-      const task = this.state.getTasks().find(t => t.id === taskId);
+      const task = this.state.getTasks().find((t) => t.id === taskId);
       if (task) {
         this.taskCompleteModal.open(taskId, task.title);
       }
@@ -284,7 +294,7 @@ export class Demo2App {
 
     // Task complete modal done → complete task + send to LLM + API
     this.taskCompleteModal.onDone = (data) => {
-      const task = this.state.getTasks().find(t => t.id === data.taskId);
+      const task = this.state.getTasks().find((t) => t.id === data.taskId);
       const message = this.state.completeTask(data.taskId);
       this.goalsTasksPanel.markTaskComplete(data.taskId);
       this.reportTaskCompletion(data.taskId);
@@ -298,7 +308,7 @@ export class Demo2App {
     // All task click (non-TOP3) → complete directly + API
     this.goalsTasksPanel.onAllTaskClick = (taskId) => {
       if (this.isBusy()) return;
-      const task = this.state.getTasks().find(t => t.id === taskId);
+      const task = this.state.getTasks().find((t) => t.id === taskId);
       const message = this.state.completeTask(taskId);
       this.goalsTasksPanel.markTaskComplete(taskId);
       this.reportTaskCompletion(taskId);
@@ -315,43 +325,76 @@ export class Demo2App {
       const scope = userId ? `user:${userId}` : null;
 
       Promise.all([
-        scope ? this.aeloraClient.getMemoryByScope(scope).catch(() => null) : null,
+        scope
+          ? this.aeloraClient.getMemoryByScope(scope).catch(() => null)
+          : null,
         this.aeloraClient.getMemory().catch(() => null),
         this.aeloraClient.getSession().catch(() => null),
-      ]).then(([scopedFacts, memory, session]) => {
-        // Prefer user-scoped facts from new endpoint
-        if (scopedFacts?.length) {
-          this.state.applyUserFacts(scopedFacts);
-          console.log(`[LUMINORA] Vault: ${scopedFacts.length} facts from /api/memory/scope (${scope})`);
-        // Fallback to all-scope memory
-        } else if (memory && Object.keys(memory).length > 0) {
-          this.state.applyMemoryFacts(memory);
-          console.log(`[LUMINORA] Vault: ${Object.values(memory).flat().length} facts from /api/memory`);
-        // Then session memories
-        } else if (session?.memories && Object.keys(session.memories).length > 0) {
-          this.state.applyMemoryFacts(session.memories);
-          console.log(`[LUMINORA] Vault: ${Object.values(session.memories).flat().length} facts from session`);
-        } else {
-          console.warn('[LUMINORA] Vault: no facts from any API, showing fixture data');
-        }
-      }).finally(() => {
-        this.vaultModal.open(this.state.getVaultFacts());
-      });
+      ])
+        .then(([scopedFacts, memory, session]) => {
+          // Prefer user-scoped facts from new endpoint
+          if (scopedFacts?.length) {
+            this.state.applyUserFacts(scopedFacts);
+            console.log(
+              `[LUMINORA] Vault: ${scopedFacts.length} facts from /api/memory/scope (${scope})`,
+            );
+            // Fallback to all-scope memory
+          } else if (memory && Object.keys(memory).length > 0) {
+            this.state.applyMemoryFacts(memory);
+            console.log(
+              `[LUMINORA] Vault: ${Object.values(memory).flat().length} facts from /api/memory`,
+            );
+            // Then session memories
+          } else if (
+            session?.memories &&
+            Object.keys(session.memories).length > 0
+          ) {
+            this.state.applyMemoryFacts(session.memories);
+            console.log(
+              `[LUMINORA] Vault: ${Object.values(session.memories).flat().length} facts from session`,
+            );
+          } else {
+            console.warn(
+              "[LUMINORA] Vault: no facts from any API, showing fixture data",
+            );
+          }
+        })
+        .finally(() => {
+          this.vaultModal.open(this.state.getVaultFacts());
+        });
     };
 
     this.navBar.onFeedbackClick = () => {
       this.feedbackPanel.open();
     };
 
-    this.feedbackPanel.onSubmit = (data) => {
-      this.saveFeedback(data);
-      this.showToast(`Feedback saved${data.tag ? ` (${data.tag})` : ''}`);
+    this.feedbackPanel.onSubmit = async (data) => {
+      if (!this.feedbackClient.isConfigured()) {
+        this.showToast("Feedback endpoint is not configured yet.");
+        return false;
+      }
+
+      const result = await this.feedbackClient.submitFeedback({
+        content: data.comment,
+        source: "Patyna",
+        category: data.tag,
+        userId: this.aeloraClient.userId,
+        displayName: this.enteredUsername || this.state.username,
+      });
+
+      if (result) {
+        this.showToast("Feedback sent — thank you!");
+        return true;
+      }
+
+      this.showToast("Could not send feedback. Please try again.");
+      return false;
     };
 
     // Briefing due-today toggle → update todo via API
     this.briefing.onDueTodayToggle = (itemId, completed) => {
       // itemId format: "todo-{uid}" from applyTodos, or "due-{n}" from fixture
-      const uid = itemId.startsWith('todo-') ? itemId.slice(5) : null;
+      const uid = itemId.startsWith("todo-") ? itemId.slice(5) : null;
       if (uid) {
         this.aeloraClient.updateTodo(uid, { completed }).catch(() => {});
       }
@@ -366,11 +409,11 @@ export class Demo2App {
   private setupListeners(): void {
     // ── Connection lifecycle ──
 
-    eventBus.on('comm:ready', ({ sessionId }) => {
+    eventBus.on("comm:ready", ({ sessionId }) => {
       console.log(`[LUMINORA] Session bound: ${sessionId}`);
 
       this.aeloraClient.getMood().then((mood) => {
-        if (mood) eventBus.emit('comm:mood', mood as MoodData);
+        if (mood) eventBus.emit("comm:mood", mood as MoodData);
       });
 
       // Send priming message
@@ -380,12 +423,12 @@ export class Demo2App {
       this.transitionToThinking();
     });
 
-    eventBus.on('comm:disconnected', () => {
+    eventBus.on("comm:disconnected", () => {
       this.resetSpeakingState();
       this.stateMachine.reset();
     });
 
-    eventBus.on('comm:error', ({ code, message }) => {
+    eventBus.on("comm:error", ({ code, message }) => {
       console.error(`[LUMINORA] Server error (${code}): ${message}`);
       this.resetSpeakingState();
       this.stateMachine.reset();
@@ -393,55 +436,57 @@ export class Demo2App {
 
     // ── LLM response flow ──
 
-    eventBus.on('comm:textDelta', () => {
-      if (this.stateMachine.state === 'thinking') {
+    eventBus.on("comm:textDelta", () => {
+      if (this.stateMachine.state === "thinking") {
         this.textStreamDone = false;
         this.audioPlaying = false;
       }
     });
 
-    eventBus.on('comm:textDone', () => {
+    eventBus.on("comm:textDone", () => {
       this.textStreamDone = true;
       this.tryFinishResponse();
       // Sync vault after each LLM response — backend may have stored new facts
       this.syncVault();
     });
 
-    eventBus.on('audio:ttsStreamStart', () => {
+    eventBus.on("audio:ttsStreamStart", () => {
       this.ttsStreamOpen = true;
     });
 
-    eventBus.on('audio:ttsStreamDone', () => {
+    eventBus.on("audio:ttsStreamDone", () => {
       this.ttsStreamOpen = false;
       this.tryFinishResponse();
     });
 
-    eventBus.on('audio:playbackStart', () => {
+    eventBus.on("audio:playbackStart", () => {
       this.audioPlaying = true;
       if (this.finishTimer) {
         clearTimeout(this.finishTimer);
         this.finishTimer = null;
       }
       const s = this.stateMachine.state;
-      if (s === 'thinking' || s === 'idle') {
-        this.stateMachine.transition('speaking');
+      if (s === "thinking" || s === "idle") {
+        this.stateMachine.transition("speaking");
       }
     });
 
-    eventBus.on('audio:playbackEnd', () => {
+    eventBus.on("audio:playbackEnd", () => {
       this.audioPlaying = false;
       this.tryFinishResponse();
     });
 
     // ── Mood ──
 
-    eventBus.on('comm:mood', (mood) => {
-      console.log(`[LUMINORA] Mood: ${mood.label} (${mood.emotion}/${mood.intensity})`);
+    eventBus.on("comm:mood", (mood) => {
+      console.log(
+        `[LUMINORA] Mood: ${mood.label} (${mood.emotion}/${mood.intensity})`,
+      );
     });
 
     // ── Celebrations ──
 
-    eventBus.on('demo:taskComplete', ({ totalPoints, maxPoints }) => {
+    eventBus.on("demo:taskComplete", ({ totalPoints, maxPoints }) => {
       // Always update points first
       this.goalsTasksPanel.updatePoints(totalPoints);
 
@@ -455,7 +500,7 @@ export class Demo2App {
         }
         this.spinAvatar();
       } catch (e) {
-        console.warn('[LUMINORA] Celebration effect error:', e);
+        console.warn("[LUMINORA] Celebration effect error:", e);
       }
     });
   }
@@ -465,19 +510,19 @@ export class Demo2App {
   private transitionToThinking(): void {
     const s = this.stateMachine.state;
     this.goalsTasksPanel.setBusy(true);
-    if (s === 'listening') {
-      this.stateMachine.transition('thinking');
-    } else if (s === 'idle') {
-      this.stateMachine.transition('listening');
-      this.stateMachine.transition('thinking');
-    } else if (s === 'speaking' || s === 'thinking') {
+    if (s === "listening") {
+      this.stateMachine.transition("thinking");
+    } else if (s === "idle") {
+      this.stateMachine.transition("listening");
+      this.stateMachine.transition("thinking");
+    } else if (s === "speaking" || s === "thinking") {
       this.elevenLabs.close();
       this.ttsPlayer.flush();
       this.resetSpeakingState();
       this.goalsTasksPanel.setBusy(true);
-      this.stateMachine.transition('idle');
-      this.stateMachine.transition('listening');
-      this.stateMachine.transition('thinking');
+      this.stateMachine.transition("idle");
+      this.stateMachine.transition("listening");
+      this.stateMachine.transition("thinking");
     }
   }
 
@@ -489,10 +534,11 @@ export class Demo2App {
     if (this.finishTimer) return;
     this.finishTimer = setTimeout(() => {
       this.finishTimer = null;
-      if (!this.textStreamDone || this.audioPlaying || this.ttsStreamOpen) return;
+      if (!this.textStreamDone || this.audioPlaying || this.ttsStreamOpen)
+        return;
       const s = this.stateMachine.state;
-      if (s === 'speaking' || s === 'thinking') {
-        this.stateMachine.transition('idle');
+      if (s === "speaking" || s === "thinking") {
+        this.stateMachine.transition("idle");
       }
       this.goalsTasksPanel.setBusy(false);
 
@@ -520,84 +566,70 @@ export class Demo2App {
   /** True when the avatar is thinking or speaking — blocks task interactions. */
   private isBusy(): boolean {
     const s = this.stateMachine.state;
-    return s === 'thinking' || s === 'speaking';
+    return s === "thinking" || s === "speaking";
   }
 
   private showToast(message: string): void {
     if (!this.toastEl) return;
     this.toastEl.textContent = message;
-    this.toastEl.classList.add('lum-toast--visible');
+    this.toastEl.classList.add("lum-toast--visible");
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.toastTimer = setTimeout(() => {
-      this.toastEl?.classList.remove('lum-toast--visible');
+      this.toastEl?.classList.remove("lum-toast--visible");
       this.toastTimer = null;
     }, 3200);
-  }
-
-  private saveFeedback(data: FeedbackEntry): void {
-    const entry = {
-      ...data,
-      username: this.enteredUsername || this.state.username,
-      createdAt: new Date().toISOString(),
-    };
-
-    const storageKey = 'patyna:demo2-feedback';
-
-    try {
-      const current = localStorage.getItem(storageKey);
-      const items = current ? JSON.parse(current) : [];
-      const next = Array.isArray(items) ? items : [];
-      next.unshift(entry);
-      localStorage.setItem(storageKey, JSON.stringify(next.slice(0, 50)));
-    } catch (err) {
-      console.warn('[LUMINORA] Failed to persist feedback locally:', err);
-    }
-
-    console.log('[LUMINORA] Feedback captured:', entry);
   }
 
   // ── API: report task completion ──
 
   private reportTaskCompletion(taskId: string): void {
-    const task = this.state.getTasks().find(t => t.id === taskId);
+    const task = this.state.getTasks().find((t) => t.id === taskId);
     if (!task) return;
 
     // Mark todo as completed in Google Tasks
     const todoUid = this.state.getTodoUid(taskId);
     if (todoUid) {
-      this.aeloraClient.updateTodo(todoUid, { completed: true }).catch(() => {});
+      this.aeloraClient
+        .updateTodo(todoUid, { completed: true })
+        .catch(() => {});
     }
 
     // Create life event for scoring
     const userId = this.aeloraClient.userId;
     if (userId) {
-      this.aeloraClient.createLifeEvent({
-        discordUserId: userId,
-        title: task.title,
-        category: 'tasks',
-        priority: task.points >= 10 ? 'high' : task.points >= 7 ? 'medium' : 'low',
-        sizeLabel: task.points >= 10 ? 'medium' : 'small',
-      }).then((result) => {
-        if (result) {
-          if (result.id) this.state.setLifeEventId(taskId, result.id);
-          console.log(`[LUMINORA] Life event created: ${task.title} (score: ${result.totalScore ?? 'n/a'})`);
-          // Sync vault — backend stores completion as a fact
-          this.syncVault();
-        }
-      }).catch(() => {});
+      this.aeloraClient
+        .createLifeEvent({
+          discordUserId: userId,
+          title: task.title,
+          category: "tasks",
+          priority:
+            task.points >= 10 ? "high" : task.points >= 7 ? "medium" : "low",
+          sizeLabel: task.points >= 10 ? "medium" : "small",
+        })
+        .then((result) => {
+          if (result) {
+            if (result.id) this.state.setLifeEventId(taskId, result.id);
+            console.log(
+              `[LUMINORA] Life event created: ${task.title} (score: ${result.totalScore ?? "n/a"})`,
+            );
+            // Sync vault — backend stores completion as a fact
+            this.syncVault();
+          }
+        })
+        .catch(() => {});
     }
   }
 
   // ── Init ──
 
   private async onReady(): Promise<void> {
-    console.log('[LUMINORA] Starting...');
+    console.log("[LUMINORA] Starting...");
 
     // Set session info — use entered username, fall back to fixture
     const username = this.enteredUsername || this.state.username;
     this.config.websocket.username = username;
     this.config.websocket.userId = username;
-    const sessionId = `patyna-luminora-${username.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`;
+    const sessionId = `patyna-luminora-${username.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}`;
     this.config.websocket.sessionId = sessionId;
     this.aeloraClient.updateUser(username);
     this.aeloraClient.updateSession(sessionId);
@@ -606,13 +638,16 @@ export class Demo2App {
     await this.ttsPlayer.init();
 
     // Unmute TTS — ElevenLabsTTS starts muted, sync with NavBar's default (enabled)
-    eventBus.emit('media:ttsToggle', { enabled: true });
+    eventBus.emit("media:ttsToggle", { enabled: true });
 
     // Fetch live API data in parallel (non-blocking — falls back to fixture)
     this.fetchLiveData();
 
     // Periodically sync vault facts in background
-    this.vaultSyncTimer = setInterval(() => this.syncVault(), this.VAULT_SYNC_INTERVAL_MS);
+    this.vaultSyncTimer = setInterval(
+      () => this.syncVault(),
+      this.VAULT_SYNC_INTERVAL_MS,
+    );
 
     this.comm.connect();
   }
@@ -623,19 +658,30 @@ export class Demo2App {
     const scope = userId ? `user:${userId}` : null;
 
     Promise.all([
-      scope ? this.aeloraClient.getMemoryByScope(scope).catch(() => null) : null,
+      scope
+        ? this.aeloraClient.getMemoryByScope(scope).catch(() => null)
+        : null,
       this.aeloraClient.getMemory().catch(() => null),
       this.aeloraClient.getSession().catch(() => null),
     ]).then(([scopedFacts, memory, session]) => {
       if (scopedFacts?.length) {
         this.state.applyUserFacts(scopedFacts);
-        console.log(`[LUMINORA] Vault synced: ${scopedFacts.length} facts from /api/memory/scope`);
+        console.log(
+          `[LUMINORA] Vault synced: ${scopedFacts.length} facts from /api/memory/scope`,
+        );
       } else if (memory && Object.keys(memory).length > 0) {
         this.state.applyMemoryFacts(memory);
-        console.log(`[LUMINORA] Vault synced: ${Object.values(memory).flat().length} facts from /api/memory`);
-      } else if (session?.memories && Object.keys(session.memories).length > 0) {
+        console.log(
+          `[LUMINORA] Vault synced: ${Object.values(memory).flat().length} facts from /api/memory`,
+        );
+      } else if (
+        session?.memories &&
+        Object.keys(session.memories).length > 0
+      ) {
         this.state.applyMemoryFacts(session.memories);
-        console.log(`[LUMINORA] Vault synced: ${Object.values(session.memories).flat().length} facts from session`);
+        console.log(
+          `[LUMINORA] Vault synced: ${Object.values(session.memories).flat().length} facts from session`,
+        );
       }
     });
   }
@@ -646,14 +692,28 @@ export class Demo2App {
 
     const scope = userId ? `user:${userId}` : null;
 
-    const [calendar, todos, scopedFacts, memory, session, scoring, leaderboard] = await Promise.all([
+    const [
+      calendar,
+      todos,
+      scopedFacts,
+      memory,
+      session,
+      scoring,
+      leaderboard,
+    ] = await Promise.all([
       this.aeloraClient.getCalendarEvents(3).catch(() => null),
-      this.aeloraClient.getTodos('pending').catch(() => null),
-      scope ? this.aeloraClient.getMemoryByScope(scope).catch(() => null) : null,
+      this.aeloraClient.getTodos("pending").catch(() => null),
+      scope
+        ? this.aeloraClient.getMemoryByScope(scope).catch(() => null)
+        : null,
       this.aeloraClient.getMemory().catch(() => null),
       this.aeloraClient.getSession().catch(() => null),
-      userId ? this.aeloraClient.getScoringStats(userId).catch(() => null) : null,
-      userId ? this.aeloraClient.getLeaderboard(userId, 3).catch(() => null) : null,
+      userId
+        ? this.aeloraClient.getScoringStats(userId).catch(() => null)
+        : null,
+      userId
+        ? this.aeloraClient.getLeaderboard(userId, 3).catch(() => null)
+        : null,
     ]);
 
     let updated = false;
@@ -673,18 +733,26 @@ export class Demo2App {
     // Prefer scoped user facts → all-scope memory → session memories
     if (scopedFacts?.length) {
       this.state.applyUserFacts(scopedFacts);
-      console.log(`[LUMINORA] Loaded ${scopedFacts.length} facts from /api/memory/scope (${scope})`);
+      console.log(
+        `[LUMINORA] Loaded ${scopedFacts.length} facts from /api/memory/scope (${scope})`,
+      );
     } else if (memory && Object.keys(memory).length > 0) {
       this.state.applyMemoryFacts(memory);
-      console.log(`[LUMINORA] Loaded ${Object.values(memory).flat().length} memory facts from /api/memory`);
+      console.log(
+        `[LUMINORA] Loaded ${Object.values(memory).flat().length} memory facts from /api/memory`,
+      );
     } else if (session?.memories && Object.keys(session.memories).length > 0) {
       this.state.applyMemoryFacts(session.memories);
-      console.log(`[LUMINORA] Loaded ${Object.values(session.memories).flat().length} memory facts from session`);
+      console.log(
+        `[LUMINORA] Loaded ${Object.values(session.memories).flat().length} memory facts from session`,
+      );
     }
 
     if (scoring) {
       this.state.applyScoringStats(scoring);
-      console.log(`[LUMINORA] Scoring: ${scoring.xp} XP, ${scoring.streak} streak`);
+      console.log(
+        `[LUMINORA] Scoring: ${scoring.xp} XP, ${scoring.streak} streak`,
+      );
       updated = true;
     }
 
@@ -716,8 +784,11 @@ export class Demo2App {
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
       const x = Math.max(-1, Math.min(1, (e.clientX - cx) / (rect.width / 2)));
-      const y = -Math.max(-1, Math.min(1, (e.clientY - cy) / (rect.height / 2)));
-      eventBus.emit('face:position', { x, y, z: 0 });
+      const y = -Math.max(
+        -1,
+        Math.min(1, (e.clientY - cy) / (rect.height / 2)),
+      );
+      eventBus.emit("face:position", { x, y, z: 0 });
     };
 
     const onMouseMove = (e: MouseEvent) => {
@@ -751,16 +822,16 @@ export class Demo2App {
       this.mouseMoveStart = 0;
       clearTimeout(this.mouseIdleTimer);
       if (!this.cameraActive) {
-        eventBus.emit('face:lost');
+        eventBus.emit("face:lost");
       }
     };
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseleave', onMouseLeave);
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseleave", onMouseLeave);
 
     this.cleanupFns.push(() => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseleave', onMouseLeave);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseleave", onMouseLeave);
     });
   }
 
@@ -807,6 +878,6 @@ export class Demo2App {
     this.ttsPlayer.destroy();
     this.audioManager.close();
     this.comm.disconnect();
-    console.log('[LUMINORA] Destroyed');
+    console.log("[LUMINORA] Destroyed");
   }
 }

@@ -1,5 +1,8 @@
 /**
  * FeedbackPanel — lightweight feedback capture modal for Demo2.
+ *
+ * The onSubmit callback returns a Promise so the panel can show
+ * in-flight and failure states while the caller handles submission.
  */
 
 import { ModalManager } from './modal-manager.ts';
@@ -22,7 +25,7 @@ const FEEDBACK_TAGS = [
 
 export class FeedbackPanel {
   private modal: ModalManager;
-  onSubmit?: (data: FeedbackEntry) => void;
+  onSubmit?: (data: FeedbackEntry) => Promise<boolean>;
 
   constructor(modal: ModalManager) {
     this.modal = modal;
@@ -31,6 +34,8 @@ export class FeedbackPanel {
   open(): void {
     const el = document.createElement('div');
     el.className = 'lum-feedback';
+
+    let submitting = false;
 
     const header = document.createElement('div');
     header.className = 'lum-feedback-header';
@@ -50,7 +55,9 @@ export class FeedbackPanel {
     closeBtn.type = 'button';
     closeBtn.setAttribute('aria-label', 'Close feedback panel');
     closeBtn.innerHTML = '&times;';
-    closeBtn.addEventListener('click', () => this.modal.close());
+    closeBtn.addEventListener('click', () => {
+      if (!submitting) this.modal.close();
+    });
 
     header.append(titleWrap, closeBtn);
 
@@ -87,7 +94,7 @@ export class FeedbackPanel {
 
     const helper = document.createElement('div');
     helper.className = 'lum-feedback-helper';
-    helper.textContent = 'Saved locally for now so we can review and iterate quickly.';
+    helper.textContent = 'Feedback is sent to the team for review.';
 
     const actions = document.createElement('div');
     actions.className = 'lum-feedback-actions';
@@ -96,18 +103,31 @@ export class FeedbackPanel {
     cancelBtn.className = 'lum-feedback-cancel';
     cancelBtn.type = 'button';
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.addEventListener('click', () => this.modal.close());
+    cancelBtn.addEventListener('click', () => {
+      if (!submitting) this.modal.close();
+    });
 
     const submitBtn = document.createElement('button');
     submitBtn.className = 'lum-feedback-submit';
     submitBtn.type = 'button';
-    submitBtn.textContent = 'Save feedback';
+    submitBtn.textContent = 'Send feedback';
     submitBtn.disabled = true;
 
     const updateState = () => {
+      if (submitting) return;
       const length = textarea.value.trim().length;
       counter.textContent = `${length}/800`;
       submitBtn.disabled = length === 0;
+    };
+
+    const setSubmitting = (busy: boolean) => {
+      submitting = busy;
+      submitBtn.disabled = busy;
+      submitBtn.textContent = busy ? 'Sending…' : 'Send feedback';
+      cancelBtn.disabled = busy;
+      textarea.disabled = busy;
+      select.disabled = busy;
+      closeBtn.disabled = busy;
     };
 
     textarea.addEventListener('input', updateState);
@@ -117,18 +137,26 @@ export class FeedbackPanel {
       }
     });
 
-    submitBtn.addEventListener('click', () => {
+    submitBtn.addEventListener('click', async () => {
       const comment = textarea.value.trim();
-      if (!comment) {
+      if (!comment || submitting) {
         textarea.focus();
         return;
       }
 
-      this.onSubmit?.({
+      setSubmitting(true);
+
+      const ok = await this.onSubmit?.({
         tag: select.value,
         comment,
-      });
-      this.modal.close();
+      }) ?? false;
+
+      if (ok) {
+        this.modal.close();
+      } else {
+        setSubmitting(false);
+        updateState();
+      }
     });
 
     actions.append(cancelBtn, submitBtn);
