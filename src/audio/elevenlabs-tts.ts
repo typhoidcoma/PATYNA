@@ -100,7 +100,8 @@ export class ElevenLabsTTS {
             // Larger minimum chunks = better prosody (Flash 2.5 handles these well)
             chunk_length_schedule: [200, 260, 320, 400],
           },
-          xi_api_key: apiKey,
+          // Must match ElevenLabs InitializeConnection schema (`xi-api-key`, not xi_api_key)
+          'xi-api-key': apiKey,
         }));
 
         resolve();

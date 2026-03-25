@@ -199,8 +199,8 @@ export class AeloraClient {
   }
 
   /** Update user identity (called after login, before connect). */
-  updateUser(username: string): void {
-    this._userId = username;
+  updateUser(userId: string, username: string): void {
+    this._userId = userId;
     this._username = username;
   }
 

@@ -89,9 +89,9 @@ export class CommManager {
   }
 
   /** Update user identity (called after login, before connect). */
-  updateUsername(username: string): void {
+  updateIdentity(userId: string, username: string): void {
+    this.config.websocket.userId = userId;
     this.config.websocket.username = username;
-    this.config.websocket.userId = username;
   }
 
   /** Send any client message. */

@@ -244,9 +244,9 @@ export class DemoApp {
         const userSessionId = `patyna-demo-${name.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`;
         this.config.websocket.sessionId = userSessionId;
 
-        this.aeloraClient.updateUser(name);
+        this.aeloraClient.updateUser(name, name);
         this.aeloraClient.updateSession(userSessionId);
-        this.comm.updateUsername(name);
+        this.comm.updateIdentity(name, name);
       }
       this.onReady();
     });

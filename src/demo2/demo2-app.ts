@@ -67,6 +67,8 @@ export class Demo2App {
   private feedbackPanel: FeedbackPanel;
 
   private loginOverlay: HTMLDivElement | null = null;
+  /** Covers the app until session is known (avoids a flash of dashboard before welcome/login). */
+  private authBootOverlay: HTMLDivElement | null = null;
   private toastEl: HTMLDivElement | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private enteredUsername = "";
@@ -216,8 +218,26 @@ export class Demo2App {
     this.initAuth(container);
   }
 
+  private ensureAuthGateCover(container: HTMLElement): void {
+    if (this.authBootOverlay) return;
+    const el = document.createElement("div");
+    el.className = "lum-login-overlay lum-auth-boot";
+    el.setAttribute("aria-busy", "true");
+    el.setAttribute("aria-label", "Signing in");
+    container.appendChild(el);
+    this.authBootOverlay = el;
+  }
+
+  private dismissAuthGateCover(): void {
+    if (!this.authBootOverlay) return;
+    this.authBootOverlay.remove();
+    this.authBootOverlay = null;
+  }
+
   /** Check for existing session or show auth dialog. */
   private async initAuth(container: HTMLElement): Promise<void> {
+    this.ensureAuthGateCover(container);
+
     // Listen for auth state changes (handles OAuth redirect callbacks too)
     this.unsubAuth = authManager.onAuthStateChange(
       (_event, _session, profile) => {
@@ -238,13 +258,40 @@ export class Demo2App {
       if (profile) {
         this.applyAuthProfile(profile);
         this.authProfile = profile;
-        this.onReady();
+        this.showWelcomeBack(container, profile);
         return;
       }
     }
 
     // No session — show auth dialog
     this.showLogin(container);
+  }
+
+  private showWelcomeBack(container: HTMLElement, profile: UserProfile): void {
+    this.dismissAuthGateCover();
+    const overlay = document.createElement("div");
+    overlay.className = "lum-login-overlay";
+    const form = document.createElement("div");
+    form.className = "lum-login-form";
+    const heading = document.createElement("div");
+    heading.className = "lum-login-heading";
+    heading.textContent = `Welcome ${profile.displayName}`;
+    const btn = document.createElement("button");
+    btn.className = "lum-auth-btn lum-auth-btn--google";
+    btn.type = "button";
+    btn.textContent = "Continue";
+    btn.addEventListener(
+      "click",
+      () => {
+        overlay.classList.add("lum-login-hiding");
+        setTimeout(() => overlay.remove(), 400);
+        this.onReady();
+      },
+      { once: true },
+    );
+    form.append(heading, btn);
+    overlay.appendChild(form);
+    container.appendChild(overlay);
   }
 
   private applyAuthProfile(profile: UserProfile): void {
@@ -266,6 +313,7 @@ export class Demo2App {
 
   /** Show auth dialog with Google, Magic Link, and Guest options. */
   private showLogin(container: HTMLElement): void {
+    this.dismissAuthGateCover();
     this.loginOverlay = document.createElement("div");
     this.loginOverlay.className = "lum-login-overlay";
 
@@ -697,18 +745,20 @@ export class Demo2App {
   private async onReady(): Promise<void> {
     console.log("[LUMINORA] Starting...");
 
-    // Derive identity from auth profile or fallback to entered username
+    // Derive identity from Supabase auth profile
     const profile = this.authProfile;
     const username =
       profile?.displayName || this.enteredUsername || this.state.username;
     const userId = profile?.userId || username;
-    this.config.websocket.username = username;
+    const sessionId = `patyna-${userId}`;
+
     this.config.websocket.userId = userId;
-    const sessionId = `patyna-luminora-${username.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}`;
+    this.config.websocket.username = username;
     this.config.websocket.sessionId = sessionId;
-    this.aeloraClient.updateUser(username);
+
+    this.aeloraClient.updateUser(userId, username);
     this.aeloraClient.updateSession(sessionId);
-    this.comm.updateUsername(username);
+    this.comm.updateIdentity(userId, username);
 
     await this.ttsPlayer.init();
 
@@ -971,6 +1021,7 @@ export class Demo2App {
   // ── Cleanup ──
 
   async destroy(): Promise<void> {
+    this.dismissAuthGateCover();
     this.unsubAuth?.();
     this.unsubAuth = null;
     if (this.toastTimer) {

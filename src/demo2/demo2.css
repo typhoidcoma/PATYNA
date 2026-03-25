@@ -1629,6 +1629,11 @@ body {
   pointer-events: none;
 }
 
+/* Empty gate while resolving session — same surface as login, no dashboard flash */
+.lum-login-overlay.lum-auth-boot {
+  cursor: wait;
+}
+
 .lum-login-form {
   display: flex;
   flex-direction: column;
