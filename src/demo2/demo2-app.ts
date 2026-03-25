@@ -26,6 +26,8 @@ import { burstStars, flashGold, playCelebrateChime } from "@/fx/celebration.ts";
 import { DEFAULT_CONFIG, type PatynaConfig } from "@/types/config.ts";
 import type { MoodData } from "@/types/messages.ts";
 
+import { authManager, type UserProfile } from "@/auth/auth-manager.ts";
+
 import { Demo2State } from "./demo2-state.ts";
 import { NavBar } from "./components/nav-bar.ts";
 import { DailyBriefing } from "./components/daily-briefing.ts";
@@ -68,6 +70,8 @@ export class Demo2App {
   private toastEl: HTMLDivElement | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private enteredUsername = "";
+  private authProfile: UserProfile | null = null;
+  private unsubAuth: (() => void) | null = null;
   private envMesh: THREE.Mesh | null = null;
   private cleanupFns: (() => void)[] = [];
   private vaultSyncTimer: ReturnType<typeof setInterval> | null = null;
@@ -94,7 +98,7 @@ export class Demo2App {
   private panelGazeLocked = false;
   private readonly PANEL_IDLE_MS = 1500;
   private static readonly UI_PANEL_SELECTOR =
-    ".lum-nav, .lum-briefing, .lum-right, .lum-journal, " +
+    ".lum-briefing, .lum-right, .lum-journal, " +
     ".lum-speech-bubble, .lum-vault-btn, .lum-backdrop, " +
     ".lum-login-overlay, .lum-toast";
 
@@ -208,70 +212,119 @@ export class Demo2App {
       }
     });
 
-    // ── Login gate ──
-    this.showLogin(container).then(() => this.onReady());
+    // ── Auth gate ──
+    this.initAuth(container);
   }
 
-  /** Show login overlay, resolve when user submits a name. */
-  private showLogin(container: HTMLElement): Promise<void> {
-    return new Promise((resolve) => {
-      this.loginOverlay = document.createElement("div");
-      this.loginOverlay.className = "lum-login-overlay";
-
-      const form = document.createElement("div");
-      form.className = "lum-login-form";
-
-      const heading = document.createElement("div");
-      heading.className = "lum-login-heading";
-      heading.textContent = "Welcome to LUMINORA";
-
-      const input = document.createElement("input");
-      input.className = "lum-login-input";
-      input.type = "text";
-      input.placeholder = "Your name…";
-      input.autocomplete = "name";
-      input.maxLength = 40;
-      input.value = localStorage.getItem("patyna:username") ?? "";
-
-      const btn = document.createElement("button");
-      btn.className = "lum-login-btn";
-      btn.textContent = "Begin";
-
-      form.append(heading, input, btn);
-      this.loginOverlay.appendChild(form);
-      container.appendChild(this.loginOverlay);
-
-      // Auto-focus
-      requestAnimationFrame(() => input.focus());
-
-      const submit = () => {
-        const name = input.value.trim();
-        if (!name) {
-          input.focus();
-          return;
+  /** Check for existing session or show auth dialog. */
+  private async initAuth(container: HTMLElement): Promise<void> {
+    // Listen for auth state changes (handles OAuth redirect callbacks too)
+    this.unsubAuth = authManager.onAuthStateChange(
+      (_event, _session, profile) => {
+        if (profile) {
+          this.applyAuthProfile(profile);
+          this.dismissLogin();
+          // Only call onReady once
+          if (!this.authProfile || this.authProfile.userId !== profile.userId) {
+            this.authProfile = profile;
+          }
         }
+      },
+    );
 
-        this.enteredUsername = name;
-        localStorage.setItem("patyna:username", name);
+    const session = await authManager.getSession();
+    if (session?.user) {
+      const profile = await authManager.getProfile();
+      if (profile) {
+        this.applyAuthProfile(profile);
+        this.authProfile = profile;
+        this.onReady();
+        return;
+      }
+    }
 
-        // Fade out overlay
-        this.loginOverlay!.classList.add("lum-login-hiding");
-        setTimeout(() => {
-          this.loginOverlay?.remove();
-          this.loginOverlay = null;
-        }, 400);
+    // No session — show auth dialog
+    this.showLogin(container);
+  }
 
-        // Update nav bar with real username
-        this.navBar.setUsername(name);
-
-        resolve();
-      };
-
-      btn.addEventListener("click", submit);
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") submit();
-      });
+  private applyAuthProfile(profile: UserProfile): void {
+    this.enteredUsername = profile.displayName;
+    this.navBar.setProfile({
+      displayName: profile.displayName,
+      avatarUrl: profile.avatarUrl,
     });
+  }
+
+  private dismissLogin(): void {
+    if (!this.loginOverlay) return;
+    this.loginOverlay.classList.add("lum-login-hiding");
+    setTimeout(() => {
+      this.loginOverlay?.remove();
+      this.loginOverlay = null;
+    }, 400);
+  }
+
+  /** Show auth dialog with Google, Magic Link, and Guest options. */
+  private showLogin(container: HTMLElement): void {
+    this.loginOverlay = document.createElement("div");
+    this.loginOverlay.className = "lum-login-overlay";
+
+    const form = document.createElement("div");
+    form.className = "lum-login-form";
+
+    const heading = document.createElement("div");
+    heading.className = "lum-login-heading";
+    heading.textContent = "Welcome";
+
+    const subtitle = document.createElement("div");
+    subtitle.className = "lum-login-subtitle";
+    subtitle.textContent = "Sign in to save your conversations and preferences";
+
+    // Google button
+    const googleBtn = document.createElement("button");
+    googleBtn.className = "lum-auth-btn lum-auth-btn--google";
+    googleBtn.type = "button";
+    googleBtn.innerHTML = `<span class="lum-auth-icon">G</span> Continue with Google`;
+    googleBtn.addEventListener("click", async () => {
+      googleBtn.disabled = true;
+      try {
+        await authManager.signInWithGoogle();
+      } catch {
+        googleBtn.disabled = false;
+        this.showToast("Could not sign in with Google");
+      }
+    });
+
+    // Divider
+    const divider = document.createElement("div");
+    divider.className = "lum-auth-divider";
+    divider.innerHTML = "<span>or</span>";
+
+    // Guest button
+    const guestBtn = document.createElement("button");
+    guestBtn.className = "lum-auth-btn lum-auth-btn--guest";
+    guestBtn.type = "button";
+    guestBtn.innerHTML = `Continue as Guest`;
+    guestBtn.addEventListener("click", async () => {
+      guestBtn.disabled = true;
+      try {
+        await authManager.signInAsGuest();
+        const profile = await authManager.getProfile();
+        if (profile) {
+          this.authProfile = profile;
+          this.applyAuthProfile(profile);
+          this.dismissLogin();
+          this.onReady();
+        }
+      } catch {
+        guestBtn.disabled = false;
+        this.showToast("Could not sign in as guest");
+      }
+    });
+
+    form.append(heading, subtitle, googleBtn, divider, guestBtn);
+    this.loginOverlay.appendChild(form);
+    container.appendChild(this.loginOverlay);
   }
 
   private wireCallbacks(): void {
@@ -376,6 +429,15 @@ export class Demo2App {
 
     this.navBar.onFeedbackClick = () => {
       this.feedbackPanel.open();
+    };
+
+    this.navBar.onSignOut = async () => {
+      try {
+        await authManager.signOut();
+        window.location.reload();
+      } catch {
+        this.showToast("Could not sign out");
+      }
     };
 
     this.feedbackPanel.onSubmit = async (data) => {
@@ -635,10 +697,13 @@ export class Demo2App {
   private async onReady(): Promise<void> {
     console.log("[LUMINORA] Starting...");
 
-    // Set session info — use entered username, fall back to fixture
-    const username = this.enteredUsername || this.state.username;
+    // Derive identity from auth profile or fallback to entered username
+    const profile = this.authProfile;
+    const username =
+      profile?.displayName || this.enteredUsername || this.state.username;
+    const userId = profile?.userId || username;
     this.config.websocket.username = username;
-    this.config.websocket.userId = username;
+    this.config.websocket.userId = userId;
     const sessionId = `patyna-luminora-${username.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}`;
     this.config.websocket.sessionId = sessionId;
     this.aeloraClient.updateUser(username);
@@ -906,6 +971,8 @@ export class Demo2App {
   // ── Cleanup ──
 
   async destroy(): Promise<void> {
+    this.unsubAuth?.();
+    this.unsubAuth = null;
     if (this.toastTimer) {
       clearTimeout(this.toastTimer);
       this.toastTimer = null;
@@ -922,6 +989,7 @@ export class Demo2App {
     this.ttsPlayer.destroy();
     this.audioManager.close();
     this.comm.disconnect();
+    authManager.destroy();
     console.log("[LUMINORA] Destroyed");
   }
 }

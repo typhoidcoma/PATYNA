@@ -61,32 +61,47 @@ body {
 
 .lum-nav-feedback {
   border: none;
-  border-radius: var(--radius-pill);
-  padding: 8px 14px;
-  background: rgba(255, 255, 255, 0.78);
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
   color: var(--lum-pink-deep);
-  font-family: var(--font-family);
-  font-size: 0.78rem;
-  font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
-  box-shadow: 0 4px 14px rgba(249, 77, 138, 0.1);
+  transition: background 0.15s ease, transform 0.1s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
 .lum-nav-feedback:hover {
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 6px 18px rgba(249, 77, 138, 0.16);
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .lum-nav-feedback:active {
-  transform: scale(0.96);
+  transform: scale(0.92);
 }
 
 .lum-nav-username {
   font-size: 0.85rem;
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
+}
+
+.lum-nav-user-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 8px 4px 12px;
+  border-radius: var(--radius-pill);
+  transition: background 0.15s ease;
+  user-select: none;
+}
+
+.lum-nav-user-btn:hover {
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .lum-nav-avatar {
@@ -100,13 +115,72 @@ body {
   color: white;
   font-size: 0.75rem;
   font-weight: var(--font-weight-semibold);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.lum-nav-avatar:hover {
-  transform: scale(1.08);
-  box-shadow: 0 2px 8px rgba(249, 77, 138, 0.3);
+.lum-nav-avatar--img {
+  background: none;
+}
+
+.lum-nav-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.lum-nav-chevron {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  line-height: 1;
+  margin-top: -2px;
+}
+
+/* ── Nav dropdown ── */
+
+.lum-nav-dropdown {
+  position: absolute;
+  top: calc(var(--lum-nav-h) - 2px);
+  right: var(--lum-gutter);
+  min-width: 140px;
+  background: var(--lum-surface-strong);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--lum-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  padding: 6px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+  z-index: 600;
+}
+
+.lum-nav-dropdown--open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.lum-nav-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  font-family: var(--font-family);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  border-radius: 8px;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.lum-nav-dropdown-item:hover {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 /* ── Dashboard 3-column layout ── */
@@ -1537,7 +1611,7 @@ body {
   transform: scale(0.98);
 }
 
-/* ── Login Overlay ── */
+/* ── Login / Auth Overlay ── */
 
 .lum-login-overlay {
   position: fixed;
@@ -1559,7 +1633,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
+  gap: 16px;
   padding: 44px 52px;
   background: var(--lum-surface-strong);
   backdrop-filter: blur(24px);
@@ -1567,15 +1641,116 @@ body {
   border: 1px solid var(--lum-border);
   border-radius: var(--radius-lg);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.08);
+  min-width: 360px;
 }
 
 .lum-login-heading {
-  font-size: 1.15rem;
+  font-size: 1.6rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   color: var(--lum-pink-deep);
-  text-transform: uppercase;
+  font-style: italic;
 }
+
+.lum-login-subtitle {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  text-align: center;
+  max-width: 280px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+/* ── Auth buttons ── */
+
+.lum-auth-btn {
+  width: 320px;
+  padding: 15px 24px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.85);
+  font-family: var(--font-family);
+  font-size: 0.95rem;
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.lum-auth-btn:hover {
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.lum-auth-btn:active {
+  transform: scale(0.98);
+}
+
+.lum-auth-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.lum-auth-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--lum-pink-deep);
+}
+
+.lum-auth-btn--google .lum-auth-icon {
+  font-family: Arial, sans-serif;
+  font-size: 1.15rem;
+}
+
+.lum-auth-btn--guest {
+  border-style: dashed;
+  border-color: rgba(0, 0, 0, 0.14);
+  background: transparent;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-secondary);
+}
+
+.lum-auth-btn--guest small {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.lum-auth-btn--guest:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Auth divider ── */
+
+.lum-auth-divider {
+  width: 320px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  margin: 4px 0;
+}
+
+.lum-auth-divider::before,
+.lum-auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* ── Shared input ── */
 
 .lum-login-input {
   width: 280px;
@@ -1625,6 +1800,11 @@ body {
 
 .lum-login-btn:active {
   transform: scale(0.97);
+}
+
+.lum-login-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 /* ── Celebration effects (reused from demo) ── */
